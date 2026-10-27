@@ -1,0 +1,41 @@
+# Ambientes virtuais do Python
+.venv/
+venv/
+env/
+
+# Cache e arquivos compilados do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cache de áudio gerado pelo Jarvis
+cache_voz/
+
+# Configuração local do bot Telegram (contém o token)
+bot_config.json
+
+# Testes e cobertura
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Configurações locais de editores e IDEs
+.vscode/
+.idea/
+
+# Configurações locais e possíveis segredos
+.env
+.env.*
+!.env.example
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.temp
+
+# Arquivos gerados pelo Windows
+Thumbs.db
+Desktop.ini
