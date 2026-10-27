@@ -1,0 +1,36 @@
+# Ambientes virtuais do Python
+.venv/
+venv/
+env/
+
+# Cache e arquivos compilados do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testes e cobertura
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Configurações locais de editores e IDEs
+.vscode/
+.idea/
+
+# Configurações locais e possíveis segredos
+.env
+.env.*
+!.env.example
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.temp
+
+# Arquivos gerados pelo Windows
+Thumbs.db
+Desktop.ini
+
