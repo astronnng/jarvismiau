@@ -1,0 +1,43 @@
+# Ambientes virtuais do Python
+.venv/
+venv/
+env/
+
+# Cache e arquivos compilados do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pacotes e versões geradas para distribuição
+releases/
+
+# Cache de áudio gerado pelo Jarvis
+cache_voz/
+
+# Configurações locais com chaves e tokens
+ia_config.json
+bot_config.json
+.env
+.env.*
+!.env.example
+
+# Testes e cobertura
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Configurações locais de editores e IDEs
+.vscode/
+.idea/
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.temp
+
+# Arquivos gerados pelo Windows
+Thumbs.db
+Desktop.ini
