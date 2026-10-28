@@ -53,6 +53,7 @@ try:
     import voz as voz_pacote                 # voz opcional (Kokoro) e /voz (docs/VOZ.md)
 except ImportError:
     voz_pacote = None
+import caminhos
 import cache_planos
 import linguagem
 import tempos
@@ -157,7 +158,7 @@ PAUSA_APOS_ERRO = 2              # segundos de descanso se a rede falhar
 JANELA_SEGUIMENTO = 6            # apos responder, aceita comandos sem dizer "Jarvis"
 
 # Cerebro de IA: entende frases livres e decide as acoes sozinho.
-# Precisa de uma chave gratuita do Google AI Studio (rode Configurar-IA.bat).
+# Precisa de uma chave gratuita do Google AI Studio (rode Jarvis.bat ia).
 # Use --sem-ia para desligar e ficar so nas regras locais.
 USAR_IA = "--sem-ia" not in sys.argv
 
@@ -277,7 +278,7 @@ def _falar_windows(texto):
 
 
 # ---------------------------------------------------------------- cache em disco
-CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache_voz")
+CACHE_DIR = str(caminhos.dados("cache_voz"))
 
 
 def _assinatura(texto):
@@ -2015,7 +2016,7 @@ def mostrar_status_ia():
     print(f"Modo IA habilitado: {USAR_IA}")
     cfg = cerebro.carregar_config()
     if not cfg.get("api_key"):
-        print("Chave: nenhuma (rode Configurar-IA.bat)")
+        print("Chave: nenhuma (rode Jarvis.bat ia)")
         print(f"Acoes disponiveis no catalogo: {len(acoes.CATALOGO)}")
         return
     chave = cfg["api_key"]
@@ -2114,7 +2115,7 @@ def main():
         elif cerebro is not None and cerebro.disponivel() and USAR_IA:
             print("(cerebro de IA ativo: entendo frases livres e decido as acoes)")
         elif USAR_IA:
-            print("(IA desligada: sem chave. Rode Configurar-IA.bat para ele entender frases livres.)")
+            print("(IA desligada: sem chave. Rode Jarvis.bat ia para ele entender frases livres.)")
         falar(f("inicio"))
 
     if lembretes is not None:

@@ -93,7 +93,7 @@ class MotorKokoro:
         self._fabrica = fabrica
         self.modelo = Path(modelo or config.MODELO)
         self.arquivo_vozes = Path(vozes or config.VOZES)
-        self.pasta_cache = Path(pasta_cache or (config.RAIZ / "cache_voz" / "kokoro"))
+        self.pasta_cache = Path(pasta_cache or config.PASTA_CACHE)
         self._kokoro = None
         self._lock_carga = threading.Lock()
         self._lock_sintese = threading.Lock()      # o espeak nao e seguro com threads em paralelo
@@ -105,9 +105,9 @@ class MotorKokoro:
     def disponivel(self):
         """(ok, motivo). Barato: nao carrega o modelo."""
         if self._fabrica is None and importlib.util.find_spec("kokoro_onnx") is None:
-            return False, "a biblioteca kokoro-onnx nao esta instalada (rode Instalar-kokoro.bat)"
+            return False, "a biblioteca kokoro-onnx nao esta instalada (rode Instalar.bat kokoro)"
         if not self.modelo.exists() or not self.arquivo_vozes.exists():
-            return False, "os modelos nao estao em modelos/kokoro (use /voz kokoro instalar)"
+            return False, "os modelos nao estao em dados/modelos/kokoro (use /voz kokoro instalar)"
         return True, ""
 
     def carregado(self):

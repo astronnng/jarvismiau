@@ -10,9 +10,11 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+import caminhos
+
 PASTA = Path(__file__).resolve().parent
-EXEMPLO_PATH = PASTA / "config.example.json"
-CONFIG_PATH = PASTA / "config.json"
+EXEMPLO_PATH = caminhos.RECURSOS / "config.example.json"
+CONFIG_PATH = caminhos.dados("config.json")
 _cache = {"mtime_ns": None, "config": None}
 _ultimo_erro = None
 

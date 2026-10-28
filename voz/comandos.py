@@ -318,7 +318,7 @@ def _k_testar(resto, ctx, motor):
 def _k_instalar(resto, ctx, motor):
     pendentes = instalar.faltando()
     if not pendentes:
-        return "Os modelos já estão instalados em modelos/kokoro."
+        return "Os modelos já estão instalados em dados/modelos/kokoro."
     try:
         baixados = instalar.instalar(
             lambda descricao: ctx.confirmar(f"Vou baixar {descricao}. Confirma?"), progresso=print)

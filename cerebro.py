@@ -10,7 +10,7 @@ Como funciona:
 
 Sem chave de API, nada quebra: o Jarvis usa apenas as regras locais.
 
-Configuracao em ia_config.json (criado pelo Configurar-IA.bat):
+Configuracao em dados/ia_config.json (criado por `Jarvis.bat ia`):
 {
   "api_key": "SUA_CHAVE",
   "modelo": "gemini-3.5-flash-lite",
@@ -27,8 +27,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import caminhos
+
 AQUI = Path(__file__).resolve().parent
-CONFIG_PATH = AQUI / "ia_config.json"
+CONFIG_PATH = caminhos.dados("ia_config.json")
 API_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
            "{modelo}:generateContent")
 

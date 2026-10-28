@@ -9,9 +9,9 @@ voce escolheu no jarvis.py.
 Nao precisa de biblioteca extra: usa apenas a biblioteca padrao do Python.
 
 COMO USAR
-  1. Crie o bot no Telegram (guia: BOT-TELEGRAM.md)
-  2. Dois cliques em "Iniciar-bot.bat"
-  3. Na primeira vez ele pede o token do bot e guarda em bot_config.json
+  1. Crie o bot no Telegram (guia: docs/TELEGRAM.md)
+  2. Rode `Jarvis.bat bot`
+  3. Na primeira vez ele pede o token do bot e guarda em dados/bot_config.json
   4. Mande /start no Telegram. O primeiro chat que falar com o bot vira o dono.
 
 IMPORTANTE: o bot roda no seu PC. Se o PC desligar, ele para.
@@ -36,6 +36,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 AQUI = Path(__file__).resolve().parent
 sys.path.insert(0, str(AQUI))
 
+import caminhos  # noqa: E402
 import jarvis  # noqa: E402
 
 # O bot fala com o PC a distancia: acoes perigosas (desligar, reiniciar) ficam
@@ -43,7 +44,7 @@ import jarvis  # noqa: E402
 jarvis.PERMITIR_ACOES_ARRISCADAS = False
 jarvis.ENTRADA_BLOQUEADA = True
 
-CONFIG_PATH = AQUI / "bot_config.json"
+CONFIG_PATH = caminhos.dados("bot_config.json")
 API = "https://api.telegram.org/bot{token}/{metodo}"
 
 # ============================================================================
@@ -70,7 +71,7 @@ def pedir_token():
     print("instrucoes. No fim ele te da um token parecido com:")
     print("   1234567890:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     print()
-    print("O guia completo esta em BOT-TELEGRAM.md")
+    print("O guia completo esta em docs/TELEGRAM.md")
     print("-" * 62)
     token = input("Cole o token aqui: ").strip()
     return token
@@ -329,7 +330,7 @@ def main():
         eu = bot.get_me()
     except Exception as e:
         print(f"Não consegui falar com o Telegram. Token correto? ({e})")
-        print("Apague o arquivo bot_config.json e rode de novo para digitar outro token.")
+        print("Apague o arquivo dados/bot_config.json e rode de novo para digitar outro token.")
         return
 
     print("=" * 62)

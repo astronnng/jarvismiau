@@ -2,7 +2,7 @@
 """
 Configuracao da ponte com o navegador.
 
-- navegador.json (ignorado pelo Git): porta e token, criados na primeira execucao.
+- dados/navegador.json (ignorado pelo Git): porta e token, criados na primeira execucao.
 - extensao/config.local.js (ignorado pelo Git): copia desses dados que a extensao le.
   Assim voce nao precisa copiar o token na mao. Se ele mudar, recarregue a extensao.
 """
@@ -12,8 +12,10 @@ import os
 import secrets
 from pathlib import Path
 
+import caminhos
+
 RAIZ = Path(__file__).resolve().parent.parent
-ARQUIVO = RAIZ / "navegador.json"
+ARQUIVO = caminhos.dados("navegador.json")
 EXTENSAO_CONFIG = RAIZ / "extensao" / "config.local.js"
 PORTA_PADRAO = 8765
 

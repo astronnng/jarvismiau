@@ -3,7 +3,7 @@
 CACHE DE PLANOS - o Jarvis "aprende" com o que o Gemini ja resolveu
 -------------------------------------------------------------------
 Quando o Gemini transforma uma frase em acoes e elas funcionam, o plano e guardado em
-cache_planos.json (ignorado pelo Git). Da proxima vez que a mesma frase aparecer
+dados/cache_planos.json (ignorado pelo Git). Da proxima vez que a mesma frase aparecer
 (ignorando acentos, maiusculas e enchimento como "por favor"), o plano sai do cache:
 instantaneo, sem rede e sem gastar cota.
 
@@ -25,9 +25,10 @@ import threading
 import time
 from pathlib import Path
 
+import caminhos
 import linguagem
 
-ARQUIVO = Path(__file__).resolve().parent / "cache_planos.json"
+ARQUIVO = caminhos.dados("cache_planos.json")
 MAX_ENTRADAS = 500
 MAX_PASSOS = 3
 

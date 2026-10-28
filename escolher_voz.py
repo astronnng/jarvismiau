@@ -2,7 +2,7 @@
 """
 Escolher-voz: ouve as vozes brasileiras e grava a sua favorita no jarvis.py
 ---------------------------------------------------------------------------
-Rode com dois cliques em "Escolher-voz.bat" (ou: python escolher_voz.py).
+Rode com `Jarvis.bat escolher-voz` (ou: python escolher_voz.py).
 Nada e instalado aqui: ele usa as mesmas bibliotecas do Jarvis.
 """
 
@@ -73,7 +73,7 @@ def falar_perfil(perfil_nome):
     try:
         import edge_tts
     except ImportError:
-        print("  Falta a biblioteca edge-tts. Rode o instalar.bat primeiro.")
+        print("  Falta a biblioteca edge-tts. Rode o Instalar.bat primeiro.")
         return
 
     arq = os.path.join(tempfile.gettempdir(), "jarvis_teste_voz.mp3")

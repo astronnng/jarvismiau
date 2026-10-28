@@ -2,7 +2,7 @@
 """
 TEMPOS - mede onde o tempo de cada comando foi
 -----------------------------------------------
-Cada comando processado vira uma linha em tempos.jsonl (ignorado pelo Git; contem as
+Cada comando processado vira uma linha em dados/tempos.jsonl (ignorado pelo Git; contem as
 frases ditas, entao fica so no seu computador):
 
   {"ts": 1730000000, "frase": "abre o segundo video", "caminho": "atalho",
@@ -27,7 +27,9 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-ARQUIVO = Path(__file__).resolve().parent / "tempos.jsonl"
+import caminhos
+
+ARQUIVO = caminhos.dados("tempos.jsonl")
 MAX_LINHAS = 1000
 _local = threading.local()
 _escrita = threading.Lock()

@@ -10,7 +10,9 @@ from contextlib import contextmanager
 from pathlib import Path
 
 
-DB_PATH = Path(__file__).resolve().parent / "lembretes.sqlite3"
+import caminhos
+
+DB_PATH = caminhos.dados("lembretes.sqlite3")
 INTERVALO_ALARME_SEGUNDOS = 30
 
 

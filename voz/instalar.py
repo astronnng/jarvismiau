@@ -100,7 +100,7 @@ def instalar(confirmar=None, pasta=None, progresso=print):
 def _principal():
     itens = faltando()
     if not itens:
-        print("Os modelos do Kokoro ja estao instalados em modelos/kokoro.")
+        print("Os modelos do Kokoro ja estao instalados em dados/modelos/kokoro.")
         return 0
     print("Vou baixar:", descricao(itens))
     print(f"Destino: {config.PASTA_MODELOS}")

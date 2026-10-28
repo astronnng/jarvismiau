@@ -1,4 +1,4 @@
-# Voz opcional Kokoro (ONNX, local). Instale com Instalar-kokoro.bat.
+# Voz opcional Kokoro (ONNX, local). Instale com Instalar.bat kokoro.
 # Versoes testadas neste projeto; sem PyTorch (o onnxruntime basta).
 kokoro-onnx==0.6.1
 onnxruntime==1.31.1

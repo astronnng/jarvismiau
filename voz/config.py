@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Configuracao de voz (voz.json, ignorado pelo Git).
+Configuracao de voz (dados/voz.json, ignorado pelo Git).
 
   {
     "motor": "padrao" | "kokoro",       # quem fala; "padrao" = a cadeia atual (edge -> Windows)
@@ -19,9 +19,12 @@ import re
 import threading
 from pathlib import Path
 
+import caminhos
+
 RAIZ = Path(__file__).resolve().parent.parent
-ARQUIVO = RAIZ / "voz.json"
-PASTA_MODELOS = RAIZ / "modelos" / "kokoro"
+ARQUIVO = caminhos.dados("voz.json")
+PASTA_MODELOS = caminhos.dados("modelos") / "kokoro"
+PASTA_CACHE = caminhos.dados("cache_voz") / "kokoro"
 MODELO = PASTA_MODELOS / "kokoro-v1.0.onnx"
 VOZES = PASTA_MODELOS / "voices-v1.0.bin"
 

@@ -11,17 +11,6 @@ __pycache__/
 # Pacotes e versões geradas para distribuição
 releases/
 
-# Cache de áudio gerado pelo Jarvis
-cache_voz/
-
-# Configurações locais com chaves e tokens
-ia_config.json
-bot_config.json
-config.json
-lembretes.sqlite3
-lembretes.sqlite3-shm
-lembretes.sqlite3-wal
-lembretes.sqlite3-journal
 .env
 .env.*
 !.env.example
@@ -47,14 +36,21 @@ htmlcov/
 Thumbs.db
 Desktop.ini
 
-# Ponte do navegador: token e configuracao locais
-navegador.json
+# Dados do usuario: tudo que o Jarvis grava (config, chaves, lembretes, voz, cache, modelos). Ver caminhos.py
+dados/
+
+# Locais antigos desses arquivos, antes de existir dados/. Continuam ignorados para que nada com chave ou
+# token va parar no Git caso a migracao automatica ainda nao os tenha movido (ex.: arquivo em uso).
+/config.json
+/ia_config.json
+/bot_config.json
+/voz.json
+/navegador.json
+/tempos.jsonl
+/cache_planos.json
+/lembretes.sqlite3*
+/cache_voz/
+/modelos/
+
+# Gerado pelo Jarvis dentro da extensao (porta e token)
 extensao/config.local.js
-
-# Medicoes de tempo e cache de planos do Gemini (locais)
-tempos.jsonl
-cache_planos.json
-
-# Modelos baixados do Kokoro (grandes, locais) e configuracao de voz
-modelos/
-voz.json

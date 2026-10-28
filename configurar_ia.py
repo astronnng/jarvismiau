@@ -3,9 +3,9 @@
 Configurar a IA do Jarvis (gratis)
 ----------------------------------
 Pede a chave do Google AI Studio, testa quais modelos gratuitos funcionam
-na sua chave e grava tudo em ia_config.json.
+na sua chave e grava tudo em dados/ia_config.json.
 
-Rode com dois cliques em "Configurar-IA.bat".
+Rode com `Jarvis.bat ia`.
 """
 
 import sys
@@ -137,9 +137,9 @@ def main():
     print('   "quanto ta o dolar"')
     print('   "me lembra em 10 minutos de tirar o bolo"')
     print()
-    print("Arquivo salvo: ia_config.json (nao compartilhe: contem sua chave).")
+    print("Arquivo salvo: dados/ia_config.json (nao compartilhe: contem sua chave).")
     print()
-    print("Quer desligar a IA depois? Use Jarvis.bat --sem-ia ou apague o ia_config.json.")
+    print("Quer desligar a IA depois? Use Jarvis.bat --sem-ia ou apague o dados/ia_config.json.")
 
 
 if __name__ == "__main__":
