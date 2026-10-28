@@ -1,3 +1,4 @@
+import _ambiente  # noqa: F401  (isola os dados do usuario; deve ser o primeiro import)
 import json
 import io
 import re

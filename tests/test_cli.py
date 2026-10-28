@@ -1,3 +1,4 @@
+import _ambiente  # noqa: F401  (isola os dados do usuario; deve ser o primeiro import)
 import asyncio
 import io
 import os
@@ -125,7 +126,12 @@ class AlarmDuringPromptTests(unittest.IsolatedAsyncioTestCase):
                     entrada = asyncio.create_task(
                         interface.entrada(jarvis._notificar_alarmas_durante_entrada))
                     pipe.send_text("nao terminei")
-                    await asyncio.sleep(0.35)
+                    # Espera o alarme ser entregue (o monitor consulta a cada 0,2 s), em vez de um
+                    # sleep fixo: com a maquina ocupada, 0,35 s nao bastava e o teste oscilava.
+                    for _ in range(200):
+                        if falar_audio.called:
+                            break
+                        await asyncio.sleep(0.05)
                     falar_audio.assert_called_once_with("Senhor, alarme: ver o arroz.")
                     pipe.send_text("\r")
                     self.assertEqual(await entrada, "nao terminei")
