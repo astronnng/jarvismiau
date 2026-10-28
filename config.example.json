@@ -1,0 +1,43 @@
+{
+  "sites": {
+    "google": "https://www.google.com",
+    "youtube": "https://www.youtube.com",
+    "whatsapp": "https://web.whatsapp.com",
+    "gmail": "https://mail.google.com",
+    "email": "https://mail.google.com",
+    "e-mail": "https://mail.google.com",
+    "instagram": "https://www.instagram.com",
+    "facebook": "https://www.facebook.com",
+    "netflix": "https://www.netflix.com",
+    "github": "https://github.com",
+    "chatgpt": "https://chatgpt.com",
+    "gemini": "https://gemini.google.com",
+    "noticias": "https://news.google.com",
+    "news": "https://news.google.com",
+    "mapa": "https://maps.google.com",
+    "mapas": "https://maps.google.com",
+    "mercado livre": "https://www.mercadolivre.com.br",
+    "correios": "https://www.correios.com.br",
+    "clima": "https://wttr.in"
+  },
+  "programas": {
+    "calculadora": "calc.exe",
+    "calculator": "calc.exe",
+    "bloco de notas": "notepad.exe",
+    "notepad": "notepad.exe",
+    "paint": "mspaint.exe",
+    "explorer": "explorer.exe",
+    "arquivos": "explorer.exe",
+    "files": "explorer.exe",
+    "gerenciador de tarefas": "taskmgr.exe",
+    "task manager": "taskmgr.exe",
+    "configuracoes": "start ms-settings:",
+    "settings": "start ms-settings:",
+    "spotify": "start spotify:",
+    "whatsapp app": "start whatsapp:",
+    "camera": "start microsoft.windows.camera:",
+    "word": "start winword",
+    "excel": "start excel",
+    "steam": "start steam:"
+  }
+}

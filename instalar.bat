@@ -8,7 +8,14 @@ echo    INSTALANDO O JARVIS  (leva 1 a 3 minutos)
 echo ==================================================
 echo.
 
-where python >nul 2>nul
+set "PYTHON=python"
+where py >nul 2>nul
+if not errorlevel 1 (
+    py -3.12 --version >nul 2>nul
+    if not errorlevel 1 set "PYTHON=py -3.12"
+)
+
+%PYTHON% --version >nul 2>nul
 if errorlevel 1 (
     echo [ERRO] O Python nao foi encontrado neste computador.
     echo.
@@ -22,12 +29,12 @@ if errorlevel 1 (
 )
 
 echo Python encontrado:
-python --version
+%PYTHON% --version
 echo.
 
 if not exist ".venv" (
     echo Criando ambiente isolado do Jarvis...
-    python -m venv .venv
+    %PYTHON% -m venv .venv
 )
 
 call ".venv\Scripts\activate.bat"
@@ -40,7 +47,7 @@ python -m pip install -r requirements.txt
 
 echo.
 echo Testando a instalacao...
-python -c "import pyttsx3, speech_recognition; print('Bibliotecas OK')"
+python -c "import pyttsx3, speech_recognition; from pycaw.pycaw import AudioUtilities; print('Bibliotecas OK')"
 if errorlevel 1 (
     echo.
     echo [AVISO] Alguma biblioteca falhou. Se o erro falar de "PyAudio",

@@ -13,8 +13,10 @@ O projeto roda localmente, sem exigir conta em nuvem ou chave de API. O reconhec
 - 🔎 Pesquisa no Google.
 - 🎵 Pesquisa de músicas e vídeos no YouTube.
 - 🔒 Bloqueio do computador.
+- 🔊 Controle de volume por comandos ou percentual.
+- ⏰ Lembretes persistentes, com alarme repetido até confirmação.
 - ⌨️ Modo texto para testar sem microfone.
-- 🛠️ Comandos personalizáveis por meio dos catálogos no arquivo `jarvis.py`.
+- 🛠️ Catálogo editável de sites e programas, recarregado sem reiniciar.
 
 ## 📋 Requisitos
 
@@ -44,11 +46,13 @@ Depois da instalação:
 
 No modo de voz, pressione **ENTER**, fale o comando e aguarde a resposta.
 
-No modo texto, digite o comando diretamente. Para encerrar, use:
+No modo texto, digite frases normalmente ou comece com `/` para abrir o menu de atalhos. Use as setas para navegar e **Tab** para completar. Os alvos de `/abrir` acompanham o catálogo local. Para ver todos os comandos, use `/ajuda`; para encerrar, use:
 
 ```text
 sair
 ```
+
+Atalhos disponíveis: `/lembretes`, `/volume 35`, `/aumentar-volume`, `/diminuir-volume`, `/silenciar`, `/play`, `/pausar`, `/proxima`, `/anterior`, `/parar`, `/abrir <alvo>`, `/confirmar <assunto>`, `/limpar` e `/sair`.
 
 Também é possível executar diretamente pelo terminal:
 
@@ -68,29 +72,29 @@ python jarvis.py --texto
 | `abrir calculadora` | Abre a Calculadora do Windows |
 | `pesquisar receita de bolo` | Pesquisa no Google |
 | `tocar Legião Urbana` | Pesquisa no YouTube |
+| `volume em 35%` | Define o volume do Windows |
+| `me lembre em 10 minutos de ver o arroz no fogo` | Cria um lembrete persistente |
+| `listar lembretes` | Lista assunto, horário e estado |
+| `confirmar arroz no fogo` | Para o alarme correspondente |
 | `bloquear o computador` | Bloqueia o Windows |
 | `sair` | Encerra o Jarvis |
 
 ## 🛠️ Personalização
 
-Para adicionar sites ou programas, edite os dicionários `SITES` e `PROGRAMAS` no início do arquivo `jarvis.py`:
+Os catálogos padrão ficam em `config.example.json`. Na primeira execução, o Jarvis cria o arquivo local `config.json`; edições nele são percebidas sem reiniciar. Esse arquivo é ignorado pelo Git para que os itens pessoais não sejam enviados junto com as alterações do projeto.
 
-```python
-SITES = {
-    "meu banco": "https://www.bb.com.br",
-}
-
-PROGRAMAS = {
-    "meu jogo": "start steam://rungameid/123456",
-}
-```
-
-Depois de salvar o arquivo, reinicie o Jarvis. Os novos comandos estarão disponíveis, por exemplo:
+O próprio Jarvis também pode cadastrar entradas:
 
 ```text
-abrir meu banco
-abrir meu jogo
+adicionar site meu banco
+adicionar programa meu editor
 ```
+
+Ele pede a URL ou o caminho/URI do aplicativo, mostra os dados e só grava depois da confirmação. Para programas, informe um caminho absoluto para um executável existente ou uma URI de aplicativo, como `spotify:`.
+
+Os lembretes ficam em `lembretes.sqlite3`, também ignorado pelo Git. Eles continuam salvos depois de fechar o Jarvis; se vencerem enquanto ele estiver fechado, o alarme começa quando o Jarvis abrir. O alarme fala o assunto e toca um sinal a cada 30 segundos até você dizer, por exemplo, `confirmar arroz no fogo`.
+
+O ajuste percentual do volume usa o dispositivo de saída padrão do Windows e precisa da dependência `pycaw`, instalada por `instalar.bat`.
 
 ## 🩹 Solução de problemas
 

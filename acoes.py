@@ -14,11 +14,13 @@ import re
 import time
 import ctypes
 import datetime
+import math
 import subprocess
-import threading
 import webbrowser
 import urllib.parse
 import urllib.request
+
+import lembretes as armazenamento_lembretes
 
 CATALOGO = {}
 
@@ -142,8 +144,26 @@ def youtube_tocar(ctx, termo="", **kw):
 
 
 @acao("volume", "Controla o volume do computador",
-      "sentido: aumentar|diminuir|mudo ; quanto: 1 a 10 (padrao 2)")
-def volume(ctx, sentido="aumentar", quanto=2, **kw):
+      "sentido: aumentar|diminuir|mudo ; quanto: 1 a 10 (padrao 2) ; percentual: 0 a 100")
+def volume(ctx, sentido="aumentar", quanto=2, percentual=None, **kw):
+    if percentual is not None:
+        try:
+            percentual = int(percentual)
+        except (TypeError, ValueError):
+            return "Informe um percentual inteiro entre 0 e 100, senhor."
+        if not 0 <= percentual <= 100:
+            return "O volume precisa ficar entre 0 e 100 por cento, senhor."
+        if not NO_WINDOWS:
+            return "O ajuste exato do volume so esta disponivel no Windows, senhor."
+        try:
+            from pycaw.pycaw import AudioUtilities
+
+            AudioUtilities.GetSpeakers().EndpointVolume.SetMasterVolumeLevelScalar(
+                percentual / 100.0, None)
+            return f"Volume ajustado para {percentual} por cento, senhor."
+        except Exception:
+            return "Nao consegui ajustar o volume exato neste dispositivo de audio, senhor."
+
     try:
         quanto = max(1, min(int(quanto), 10))
     except Exception:
@@ -167,7 +187,7 @@ def volume(ctx, sentido="aumentar", quanto=2, **kw):
 def abrir_programa(ctx, nome="", **kw):
     chave = ctx.normalizar(nome or "")
     if chave in ctx.PROGRAMAS:
-        _iniciar(ctx.PROGRAMAS[chave])
+        ctx.abrir_programa(ctx.PROGRAMAS[chave])
         return f"Abrindo {chave}, senhor."
     return None
 
@@ -250,11 +270,8 @@ def data(ctx, **kw):
 
 
 # ============================================================================
-# LEMBRETES E TIMERS
+# LEMBRETES PERSISTENTES
 # ============================================================================
-_lembretes = []
-
-
 @acao("lembrete", "Cria um lembrete que avisa por voz depois de um tempo",
       "minutos: numero (aceita fracoes, ex 0.5) ; motivo: sobre o que avisar")
 def lembrete(ctx, minutos=5, motivo="", **kw):
@@ -262,18 +279,10 @@ def lembrete(ctx, minutos=5, motivo="", **kw):
         minutos = float(minutos)
     except Exception:
         minutos = 5
-    if minutos <= 0:
+    if not math.isfinite(minutos) or minutos <= 0:
         minutos = 5
     motivo = (motivo or "o lembrete").strip()
-
-    def avisar():
-        ctx.falar(f"Senhor, lembrete: {motivo}.")
-        print("\a")   # bipe no terminal
-
-    t = threading.Timer(minutos * 60, avisar)
-    t.daemon = True
-    t.start()
-    _lembretes.append(t)
+    armazenamento_lembretes.Lembretes().criar(motivo, minutos)
 
     if minutos < 1:
         seg = int(minutos * 60)
@@ -284,12 +293,23 @@ def lembrete(ctx, minutos=5, motivo="", **kw):
     return f"Certo, senhor. Aviso em {minutos:g} minutos sobre {motivo}."
 
 
-@acao("listar_lembretes", "Diz quantos lembretes estao ativos")
+@acao("listar_lembretes", "Lista os lembretes ativos com assunto, horario e estado")
 def listar_lembretes(ctx, **kw):
-    ativos = [t for t in _lembretes if t.is_alive()]
+    ativos = armazenamento_lembretes.Lembretes().listar()
     if not ativos:
         return "Nenhum lembrete ativo, senhor."
-    return f"Tenho {len(ativos)} lembrete(s) ativo(s), senhor."
+    linhas = []
+    for item in ativos:
+        horario = armazenamento_lembretes.formatar_horario(item["vence_em"])
+        estado = "alarme tocando" if item["estado"] == "tocando" else "pendente"
+        linhas.append(f"{item['motivo']} (vence as {horario}; {estado})")
+    return f"Tenho {len(ativos)} lembrete(s): " + "; ".join(linhas) + ", senhor."
+
+
+@acao("confirmar_lembrete", "Confirma e encerra um alarme de lembrete pelo assunto",
+      "assunto: trecho ou titulo do lembrete que esta tocando")
+def confirmar_lembrete(ctx, assunto="", **kw):
+    return armazenamento_lembretes.Lembretes().confirmar(assunto)
 
 
 # ============================================================================

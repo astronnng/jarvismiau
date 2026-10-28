@@ -121,6 +121,9 @@ REGRAS IMPORTANTES:
 4. "colocar a musica X", "tocar X" -> youtube_tocar (funciona sempre). Se o usuario disser
    explicitamente Spotify com uma musica, use spotify_buscar com o termo.
 5. "aumentar/diminuir volume" -> volume. "silenciar" -> volume com sentido "mudo".
+   Para um nivel exato (ex: 35 por cento), use volume com parametro percentual: 35.
+   Ao pedirem a lista, use listar_lembretes; para parar um alarme, use confirmar_lembrete
+   com o assunto especifico.
 6. Se o usuario pedir algo que o computador faz mas nao esta na lista, use pesquisar_google
    com um termo bom, e diga isso na "fala".
 7. Se a frase for uma pergunta de conhecimento (ex: "quanto e 15% de 340", "quem foi Santos Dumont"),

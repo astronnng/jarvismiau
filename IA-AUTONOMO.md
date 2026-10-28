@@ -3,7 +3,7 @@
 Até aqui o Jarvis era um **executor de comandos**: ele reconhecia frases que já estavam
 programadas ("que horas são", "abrir youtube"). Agora ele ganhou duas coisas:
 
-1. **Um catálogo de 23 ações** que ele sabe executar no PC (mídia, volume, lembretes, sistema…)
+1. **Um catálogo de ações** que ele sabe executar no PC (mídia, volume, lembretes, sistema…)
 2. **Um cérebro de IA** que lê a sua frase, entende o que você quer e **escolhe as ações sozinho**
 
 O resultado é o que você pediu: *"dar play no spotify"* funciona, e ele decide como fazer.
@@ -48,7 +48,9 @@ Agora fale do jeito que quiser:
 | "abre o netflix **e** aumenta o volume" | executa as **duas** coisas em sequência |
 | "quanto tá o dólar" | pesquisa |
 | "quanto é 15% de 340" | responde **51** (conversa, sem abrir nada) |
-| "me lembra em 10 minutos de tirar o bolo" | cria o lembrete e avisa por voz |
+| "me lembra em 10 minutos de tirar o bolo" | cria lembrete persistente e avisa por voz |
+| "listar lembretes" | mostra assunto, horário e estado |
+| "confirmar tirar o bolo" | para o alarme desse lembrete |
 | "como está a memória do PC" | lê memória, disco e bateria |
 | "desliga o computador" | pede confirmação antes |
 | "deleta a pasta tal" | recusa — não existe essa ação no catálogo |
@@ -86,10 +88,10 @@ Jarvis: Nao tenho permissao para apagar arquivos, senhor.
 | Categoria | Ações |
 |---|---|
 | **Mídia** | play/pausa, próxima, anterior, parar, Spotify (abrir/buscar), YouTube |
-| **Som** | volume aumentar/diminuir, mudo |
+| **Som** | volume aumentar/diminuir, percentual de 0 a 100, mudo |
 | **Apps e sites** | abrir programa, abrir site, abrir URL, pesquisar no Google |
 | **Informação** | horas, data, clima de qualquer cidade, status do PC |
-| **Rotina** | lembretes (por voz), listar lembretes |
+| **Rotina** | lembretes persistentes, listar e confirmar alarmes pelo assunto |
 | **Sistema** | bloquear, desligar ⚠️, reiniciar ⚠️, hibernar ⚠️, cancelar desligamento |
 
 ⚠️ = pede confirmação ("Isso vai DESLIGAR o computador. Confirma?").

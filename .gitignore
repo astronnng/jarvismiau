@@ -17,6 +17,11 @@ cache_voz/
 # Configurações locais com chaves e tokens
 ia_config.json
 bot_config.json
+config.json
+lembretes.sqlite3
+lembretes.sqlite3-shm
+lembretes.sqlite3-wal
+lembretes.sqlite3-journal
 .env
 .env.*
 !.env.example

@@ -30,13 +30,22 @@ import unicodedata
 import urllib.request
 import urllib.parse
 import webbrowser
+from contextlib import nullcontext
 
 try:
     import acoes
     import cerebro
+    import catalogo
+    import lembretes
 except Exception:      # se algum arquivo faltar, o Jarvis continua so com regras locais
     acoes = None
     cerebro = None
+    catalogo = None
+    lembretes = None
+try:
+    import cli as cli_terminal
+except ImportError:
+    cli_terminal = None
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
@@ -473,6 +482,7 @@ def _falar_neural(texto):
 # ---------------------------------------------------------------- pre-aquecimento
 def frases_conhecidas():
     """Lista das frases fixas que o Jarvis costuma falar (para gerar antecipado)."""
+    atualizar_catalogos()
     lista = set()
     for valor in FRASES[IDIOMA_FALA].values():
         for v in (valor if isinstance(valor, list) else [valor]):
@@ -524,22 +534,106 @@ def preaquecer_cache():
 # E assim que o bot do Telegram reaproveita toda a logica deste arquivo.
 CAPTURAR = False
 CAPTURADO = []
+_fala_lock = threading.RLock()
+_servico_alarmes = None
+_instancia_lock = None
+_cli = None
 
 
-def falar(texto):
-    """Fala o texto com o motor escolhido. Sempre imprime na tela."""
-    print(f"{NOME}: {texto}")
+def _falar_audio(texto):
     if CAPTURAR:
         CAPTURADO.append(texto)
         return
     if PERFIL["motor"] == "edge":
         if _falar_neural(texto):
             return
-        # se a voz neural falhar (sem internet, por exemplo), usa a do Windows
         _falar_windows(texto)
     else:
-        if not _falar_windows(texto):
-            pass
+        _falar_windows(texto)
+
+
+def falar(texto):
+    """Fala o texto com o motor escolhido. Sempre imprime na tela."""
+    with _fala_lock:
+        if _cli is not None:
+            _cli.jarvis(texto)
+        else:
+            print(f"{NOME}: {texto}")
+        if CAPTURAR:
+            CAPTURADO.append(texto)
+            return
+        _falar_audio(texto)
+
+
+def _notificar_alarmas_pendentes(antes_de_falar=None):
+    """Entrega alarmes na thread principal, sem disputar entrada ou motor de voz."""
+    if _servico_alarmes is None:
+        return 0
+    for erro in _servico_alarmes.drenar_erros():
+        print(f"(nao consegui verificar os lembretes: {erro})")
+    pendentes = _servico_alarmes.drenar()
+    if pendentes and antes_de_falar is not None:
+        antes_de_falar()
+    for lembrete in pendentes:
+        print("\a", end="", flush=True)
+        texto = f"Senhor, alarme: {lembrete['motivo']}."
+        if _cli is not None:
+            with _fala_lock:
+                _cli.alarme(lembrete["motivo"])
+                _falar_audio(texto)
+        else:
+            falar(texto)
+    return len(pendentes)
+
+
+def _ler_texto_com_alarmas(prompt="Voce: "):
+    """Le uma linha no console Windows e preserva o que ja foi digitado ao alertar."""
+    if not sys.stdin.isatty():
+        return input(prompt).strip()
+    try:
+        import msvcrt
+    except ImportError:
+        return input(prompt).strip()
+
+    caracteres = []
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    while True:
+        def preparar_linha_para_alarme():
+            # Limpa o prompt antes da fala; o prompt e o texto voltam depois dela.
+            sys.stdout.write("\r\x1b[2K")
+            sys.stdout.flush()
+
+        if _notificar_alarmas_pendentes(antes_de_falar=preparar_linha_para_alarme):
+            # A fala do alarme termina com quebra de linha; restaura o prompt e o texto.
+            sys.stdout.write(prompt + "".join(caracteres))
+            sys.stdout.flush()
+
+        if not msvcrt.kbhit():
+            time.sleep(0.04)
+            continue
+
+        caractere = msvcrt.getwch()
+        if caractere in ("\x00", "\xe0"):
+            # Teclas de navegacao enviam um segundo codigo; nao entram no comando.
+            msvcrt.getwch()
+            continue
+        if caractere in ("\r", "\n"):
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            return "".join(caracteres).strip()
+        if caractere == "\x03":
+            raise KeyboardInterrupt
+        if caractere == "\b":
+            if caracteres:
+                caracteres.pop()
+                sys.stdout.write(chr(8) + " " + chr(8))
+                sys.stdout.flush()
+            continue
+        if caractere.isprintable():
+            caracteres.append(caractere)
+            sys.stdout.write(caractere)
+            sys.stdout.flush()
 
 
 # ============================================================================
@@ -591,6 +685,7 @@ def ouvir():
     try:
         audio = r.listen(fonte, timeout=6, phrase_time_limit=8)
     except sr.WaitTimeoutError:
+        _notificar_alarmas_pendentes()
         return ""
     except Exception:
         falar(f("sem_microfone"))
@@ -621,7 +716,7 @@ def descartar_buffer():
         pass
 
 
-def ouvir_continuo(avisar_erro=True):
+def ouvir_continuo(avisar_erro=True, timeout=None):
     """
     Uma rodada de escuta em modo continuo.
     Devolve o texto reconhecido, "" se nao entendeu, ou None se houve falha.
@@ -641,8 +736,9 @@ def ouvir_continuo(avisar_erro=True):
 
     descartar_buffer()
     try:
-        audio = r.listen(fonte, timeout=None, phrase_time_limit=LIMITE_FRASE)
+        audio = r.listen(fonte, timeout=timeout, phrase_time_limit=LIMITE_FRASE)
     except sr.WaitTimeoutError:
+        _notificar_alarmas_pendentes()
         return ""
     except KeyboardInterrupt:
         raise
@@ -700,8 +796,9 @@ def loop_voz():
     erros_seguidos = 0
     janela_ate = 0.0          # ate quando aceitar comandos sem a palavra de ativacao
     while True:
+        _notificar_alarmas_pendentes()
         try:
-            texto = ouvir_continuo(avisar_erro=(erros_seguidos == 0))
+            texto = ouvir_continuo(avisar_erro=(erros_seguidos == 0), timeout=1)
         except KeyboardInterrupt:
             print()
             falar(f("sair"))
@@ -721,7 +818,7 @@ def loop_voz():
                 print("Digite seus comandos. 'sair' ou Ctrl+C encerram.\n")
                 while True:
                     try:
-                        comando = input("Voce: ").strip()
+                        comando = pegar_comando()
                     except (EOFError, KeyboardInterrupt):
                         falar(f("sair"))
                         return
@@ -788,11 +885,109 @@ def encerrar_microfone():
 def pegar_comando():
     if MODO_TEXTO:
         try:
-            return input("Voce: ").strip()
+            return _ler_texto_com_alarmas()
         except (EOFError, KeyboardInterrupt):
             return "sair"
     input("Aperte ENTER para falar...")
     return ouvir()
+
+
+def _alvos_catalogo():
+    atualizar_catalogos()
+    return list(SITES) + list(PROGRAMAS)
+
+
+def _assuntos_lembretes():
+    if lembretes is None:
+        return []
+    return [item["motivo"] for item in lembretes.Lembretes().listar()]
+
+
+def _executar_comando_slash(linha):
+    """Executa atalhos do terminal sem encaminhar slash commands para o Gemini."""
+    comando, _, argumento = linha.strip()[1:].partition(" ")
+    comando = comando.lower()
+    argumento = argumento.strip()
+    if comando == "ajuda":
+        _cli.ajuda()
+    elif comando == "lembretes":
+        executar_acao("listar_lembretes")
+    elif comando == "volume":
+        if not re.fullmatch(r"\d{1,3}%?", argumento):
+            _cli.jarvis("Uso: /volume <0 a 100>")
+        else:
+            executar_acao("volume", {"percentual": int(argumento.rstrip("%"))})
+    elif comando in ("aumentar-volume", "diminuir-volume", "silenciar"):
+        sentido = {"aumentar-volume": "aumentar", "diminuir-volume": "diminuir",
+                   "silenciar": "mudo"}[comando]
+        executar_acao("volume", {"sentido": sentido})
+    elif comando in ("play", "pausar"):
+        executar_acao("midia_play_pausa")
+    elif comando == "proxima":
+        executar_acao("midia_proxima")
+    elif comando == "anterior":
+        executar_acao("midia_anterior")
+    elif comando == "parar":
+        executar_acao("midia_parar")
+    elif comando == "abrir":
+        if not argumento:
+            _cli.jarvis("Uso: /abrir <site ou programa do catalogo>")
+        elif not tentar_abrir(argumento):
+            _cli.jarvis(f'Nao encontrei "{argumento}" no catalogo.')
+    elif comando == "confirmar":
+        executar_acao("confirmar_lembrete", {"assunto": argumento})
+    elif comando == "limpar":
+        _cli.limpar()
+    elif comando == "sair":
+        falar(f("sair"))
+        return False
+    else:
+        _cli.jarvis(f'Comando desconhecido: /{comando}. Digite /ajuda para ver as opcoes.')
+    return True
+
+
+async def _loop_texto():
+    """Prompt assíncrono com dropdown e entrega concorrente dos alarmes."""
+    global _cli
+    if cli_terminal is None:
+        await asyncio.to_thread(falar, f("inicio"))
+        while True:
+            try:
+                comando = await asyncio.to_thread(input, "Voce: ")
+            except (EOFError, KeyboardInterrupt):
+                await asyncio.to_thread(falar, f("sair"))
+                break
+            if not await asyncio.to_thread(processar, comando):
+                break
+        return
+
+    _cli = cli_terminal.JarvisCLI(_alvos_catalogo, _assuntos_lembretes)
+    _cli.cabecalho(bool(cerebro and cerebro.disponivel() and USAR_IA))
+    await asyncio.to_thread(falar, f("inicio"))
+    contexto_saida = (cli_terminal.patch_stdout(raw=_cli.com_cores)
+                      if _cli.interativo else nullcontext())
+    with contexto_saida:
+        while True:
+            try:
+                entrada = asyncio.create_task(_cli.entrada())
+                while not entrada.done():
+                    await asyncio.wait((entrada,), timeout=0.2)
+                    if not entrada.done() and _servico_alarmes is not None:
+                        await asyncio.to_thread(_notificar_alarmas_pendentes)
+                comando = entrada.result().strip()
+            except (EOFError, KeyboardInterrupt, asyncio.CancelledError):
+                await asyncio.to_thread(falar, f("sair"))
+                break
+
+            if not comando:
+                continue
+            if comando.startswith("/"):
+                continuar = await asyncio.to_thread(_executar_comando_slash, comando)
+            else:
+                continuar = await asyncio.to_thread(processar, comando)
+            if not continuar:
+                break
+    _cli = None
 
 
 # ============================================================================
@@ -811,48 +1006,34 @@ def termo_original(comando, c_resto):
 
 
 def abrir_programa(cmd):
+    cmd = str(cmd or "").strip().strip('"')
+    esquema = re.match(r"^([a-z][a-z0-9+.-]*):", cmd, re.IGNORECASE)
+    uri_app = esquema and esquema.group(1).lower() not in {
+        "http", "https", "file", "javascript", "data"
+    }
+    if os.name == "nt" and (os.path.isabs(cmd) or uri_app):
+        os.startfile(cmd)
+        return
+    # Compatibilidade com os comandos internos ja existentes no catalogo padrao.
     subprocess.Popen(cmd, shell=True)
 
 
 # ============================================================================
 # 7. CATALOGOS
 # ============================================================================
-SITES = {
-    "google": "https://www.google.com",
-    "youtube": "https://www.youtube.com",
-    "whatsapp": "https://web.whatsapp.com",
-    "gmail": "https://mail.google.com",
-    "email": "https://mail.google.com",
-    "e-mail": "https://mail.google.com",
-    "instagram": "https://www.instagram.com",
-    "facebook": "https://www.facebook.com",
-    "netflix": "https://www.netflix.com",
-    "github": "https://github.com",
-    "chatgpt": "https://chatgpt.com",
-    "gemini": "https://gemini.google.com",
-    "noticias": "https://news.google.com",
-    "news": "https://news.google.com",
-    "mapa": "https://maps.google.com",
-    "mapas": "https://maps.google.com",
-    "mercado livre": "https://www.mercadolivre.com.br",
-    "correios": "https://www.correios.com.br",
-    "clima": "https://wttr.in",
-}
+def atualizar_catalogos():
+    """Atualiza os catalogos quando config.json muda, sem reiniciar o processo."""
+    global SITES, PROGRAMAS
+    if catalogo is None:
+        return
+    dados = catalogo.carregar()
+    SITES = dados["sites"]
+    PROGRAMAS = dados["programas"]
 
-PROGRAMAS = {
-    "calculadora": "calc.exe", "calculator": "calc.exe",
-    "bloco de notas": "notepad.exe", "notepad": "notepad.exe",
-    "paint": "mspaint.exe",
-    "explorer": "explorer.exe", "arquivos": "explorer.exe", "files": "explorer.exe",
-    "gerenciador de tarefas": "taskmgr.exe", "task manager": "taskmgr.exe",
-    "configuracoes": "start ms-settings:", "settings": "start ms-settings:",
-    "spotify": "start spotify:",
-    "whatsapp app": "start whatsapp:",
-    "camera": "start microsoft.windows.camera:",
-    "word": "start winword",
-    "excel": "start excel",
-    "steam": "start steam:",
-}
+
+SITES = {}
+PROGRAMAS = {}
+atualizar_catalogos()
 
 
 # ============================================================================
@@ -901,6 +1082,8 @@ def tarefa_pesquisar(termo):
 
 
 def tentar_abrir(alvo):
+    atualizar_catalogos()
+    alvo = normalizar(alvo)
     if alvo in PROGRAMAS:
         falar(f("abrindo_app", alvo=alvo))
         abrir_programa(PROGRAMAS[alvo])
@@ -910,6 +1093,86 @@ def tentar_abrir(alvo):
         webbrowser.open(SITES[alvo])
         return True
     return False
+
+
+def _perguntar_texto(pergunta):
+    falar(pergunta)
+    if MODO_TEXTO:
+        try:
+            resposta = _ler_texto_com_alarmas("Voce: ")
+        except (EOFError, KeyboardInterrupt):
+            return ""
+        return resposta
+    while True:
+        resposta = ouvir_continuo(avisar_erro=True, timeout=1)
+        if resposta is None:
+            return ""
+        if resposta:
+            print(f"Voce: {resposta}")
+            return resposta.strip()
+
+
+def cadastrar_entrada_catalogo(tipo, resto=""):
+    """Coleta os dados explicitamente e grava somente apos confirmacao do usuario."""
+    if ENTRADA_BLOQUEADA:
+        falar("Esse cadastro precisa ser feito neste computador, senhor.")
+        return
+    if catalogo is None:
+        falar("O catalogo editavel nao esta disponivel, senhor.")
+        return
+    nome = (resto or "").strip()
+    destino = ""
+
+    if tipo == "site":
+        match = re.search(r"https?://\S+", nome, re.IGNORECASE)
+        if match:
+            destino = match.group(0).rstrip(".,)\"'")
+            nome = (nome[:match.start()] + " " + nome[match.end():]).strip()
+    else:
+        citado = re.search(r'"([^"]+)"\s*$', nome)
+        if citado:
+            destino = citado.group(1)
+            nome = nome[:citado.start()].strip()
+
+    nome = re.sub(r"^(?:o|a|um|uma)\s+", "", nome, flags=re.IGNORECASE)
+    nome = re.sub(r"^(?:chamado|chamada|com nome|com o nome)\s+", "", nome, flags=re.IGNORECASE)
+    nome = normalizar(nome)
+    if not nome:
+        nome = normalizar(_perguntar_texto("Qual nome devo usar no catalogo, senhor?"))
+    if not nome:
+        falar("Cadastro cancelado: faltou o nome, senhor.")
+        return
+
+    if not destino:
+        if tipo == "site":
+            destino = _perguntar_texto("Qual e a URL completa do site? Use http ou https, senhor.")
+        else:
+            destino = _perguntar_texto(
+                "Informe o caminho absoluto do executavel ou a URI do aplicativo, senhor.")
+    destino = str(destino or "").strip().strip('"')
+    if not destino:
+        falar("Cadastro cancelado: faltou o destino, senhor.")
+        return
+
+    ok, erro = catalogo.validar_entrada(tipo, nome, destino)
+    if not ok:
+        falar(erro)
+        return
+
+    atualizar_catalogos()
+    secao = SITES if tipo == "site" else PROGRAMAS
+    substituindo = nome in secao
+    verbo = "substituir" if substituindo else "cadastrar"
+    rotulo = "site" if tipo == "site" else "programa"
+    falar(f"Confirma {verbo} o {rotulo} {nome} com destino {destino}? Diga sim ou nao, senhor.")
+    if not perguntar_sim_nao(tentativas=2):
+        falar("Tudo bem, nao alterei o catalogo, senhor.")
+        return
+
+    ok, mensagem = catalogo.salvar_entrada(tipo, nome, destino)
+    if ok:
+        atualizar_catalogos()
+    falar(mensagem)
 
 
 def tarefa_youtube(termo):
@@ -922,7 +1185,9 @@ def tarefa_lembrete(comando, c=None):
     c = c or normalizar(comando)
     minutos = None
 
-    m = re.search(r"\bem\s+(\d+(?:[.,]\d+)?)\s*(segundos?|minutos?|min|horas?|h)\b", c)
+    m = re.search(
+        r"\b(?:em|daqui(?:\s+a)?)\s+(\d+(?:[.,]\d+)?)\s*(segundos?|minutos?|min|horas?|h)\b",
+        c)
     if m:
         valor = float(m.group(1).replace(",", "."))
         unidade = m.group(2)
@@ -953,7 +1218,9 @@ def tarefa_lembrete(comando, c=None):
         motivo = m2.group(1).strip(" .")
     else:
         motivo = re.sub(r".*\b(lembre|lembrar|avise|avisar|alarme|timer|cronometro)\b", "", c).strip(" .")
-        motivo = re.sub(r"\bem\s+\d+([.,]\d+)?\s*(segundos?|minutos?|min|horas?|h)\b", "", motivo).strip(" .")
+        motivo = re.sub(
+            r"\b(?:em|daqui(?:\s+a)?)\s+\d+([.,]\d+)?\s*(segundos?|minutos?|min|horas?|h)\b",
+            "", motivo).strip(" .")
         motivo = motivo or "o lembrete"
 
     executar_acao("lembrete", {"minutos": minutos, "motivo": motivo})
@@ -990,6 +1257,21 @@ R_LEMBRETE = r"\b(lembre|lembra|lembrar|avise|avisa|avisar|alarme|timer|cronomet
 R_STATUS = r"\b(como (esta|estao) (o pc|o computador|a memoria)|memoria|status|desempenho)\b"
 R_DESLIGAR_PC = r"\b(desligar|desliga|reiniciar|reinicia|hibernar)\b.*\b(pc|computador|maquina|windows)\b"
 R_CANCELAR_DESLIGAMENTO = r"\bcancelar\b.*\bdesligamento\b"
+R_LISTAR_LEMBRETES = r"\b(listar|liste|mostrar|mostre|quais|quantos)\b.*\blembretes?\b|\bmeus lembretes\b"
+R_CONFIRMAR_LEMBRETE = (
+    r"^(?:confirmar|confirma|reconhecer|parar|pare|"
+    r"para(?=\s+(?:(?:o|a)\s+)?(?:alarme|lembrete)\b)|encerrar|encerra|encerre|"
+    r"cancelar|cancela|cancele|desativar|desativa|desative)\s+(?:(?:o|a)\s+)?"
+    r"(?:(?:alarme|lembrete)\s*(?:de|do|da)?\s*)?(.+)$"
+)
+R_DISPENSAR_ALARME = (
+    r"^(?:nao quero|nao precisa|ja vi|ja fiz|ja cuidei|pronto|dispensa|"
+    r"pode parar|pode encerrar|pode desligar)(?:\s+(?:o|esse|este)\s+(?:alarme|lembrete))?$"
+)
+R_CADASTRAR_CATALOGO = (
+    r"^\s*(?:adicionar|adiciona|cadastrar|cadastre|incluir|inclua)\s+"
+    r"(?:(?:o|a|um|uma)\s+)?(?P<tipo>site|programa|aplicativo|app)\b\s*(?P<resto>.*)$"
+)
 
 
 R_NAO = r"^(n|nao|não|no|nope|deixa|deixa pra la|nao precisa|cancelar)\b"
@@ -1006,13 +1288,13 @@ def perguntar_sim_nao(tentativas=3):
     for _ in range(tentativas):
         if MODO_TEXTO:
             try:
-                resposta = input("(sim/nao) ").strip()
+                resposta = _ler_texto_com_alarmas("(sim/nao) ")
             except (EOFError, KeyboardInterrupt):
                 return False
         else:
             print("(aguardando sua resposta...)")
             try:
-                resposta = ouvir_continuo(avisar_erro=True)
+                resposta = ouvir_continuo(avisar_erro=True, timeout=1)
             except KeyboardInterrupt:
                 return False
             # ouviu a propria pergunta ou ruido: tenta de novo sem falar nada
@@ -1139,6 +1421,7 @@ def processar_com_ia(comando):
 
 
 def processar(comando):
+    atualizar_catalogos()
     c = normalizar(comando)
 
     if not c:
@@ -1151,6 +1434,21 @@ def processar(comando):
     if re.search(R_SAIR, c) and not re.search(r"\b(pc|computador|maquina|windows|desligamento)\b", c):
         falar(f("sair"))
         return False
+
+    cadastro = re.match(R_CADASTRAR_CATALOGO, comando, re.IGNORECASE)
+    if cadastro:
+        tipo = "site" if cadastro.group("tipo").lower() == "site" else "programa"
+        cadastrar_entrada_catalogo(tipo, cadastro.group("resto"))
+        return True
+
+    confirmar = re.match(R_CONFIRMAR_LEMBRETE, c)
+    if confirmar:
+        executar_acao("confirmar_lembrete", {"assunto": confirmar.group(1).strip()})
+        return True
+    if (re.match(R_DISPENSAR_ALARME, c) and lembretes is not None
+            and lembretes.Lembretes().tem_alarmas_tocando()):
+        executar_acao("confirmar_lembrete", {"assunto": ""})
+        return True
 
     # Frase com mais de uma acao: melhor deixar a IA planejar tudo de uma vez
     if parece_multi_comando(c) and processar_com_ia(comando):
@@ -1173,10 +1471,15 @@ def processar(comando):
         executar_acao(verbo, {"segundos": 60})
     elif re.search(R_STATUS, c):
         executar_acao("status_pc")
+    elif re.search(R_LISTAR_LEMBRETES, c):
+        executar_acao("listar_lembretes")
     elif re.search(R_LEMBRETE, c):
         tarefa_lembrete(comando, c)
     elif re.search(R_VOLUME, c) and not re.search(R_PESQ, c):
-        if re.search(r"\b(mudo|silenciar|silencia|mutar)\b", c):
+        percentual = re.search(r"\b(\d{1,3})\s*(?:%|por cento)(?!\w)", c)
+        if percentual:
+            executar_acao("volume", {"percentual": int(percentual.group(1))})
+        elif re.search(r"\b(mudo|silenciar|silencia|mutar)\b", c):
             executar_acao("volume", {"sentido": "mudo"})
         elif re.search(r"\b(abaix|baix|diminu|menos|reduz)\w*", c):
             executar_acao("volume", {"sentido": "diminuir", "quanto": 3})
@@ -1265,27 +1568,100 @@ def mostrar_status_ia():
     print("=" * 60)
 
 
+def _adquirir_lock_instancia():
+    """Garante um unico Jarvis por checkout, evitando alarmes/processos duplicados."""
+    global _instancia_lock
+    if _instancia_lock is not None:
+        return True
+    identidade = hashlib.sha256(os.path.dirname(os.path.abspath(__file__)).lower().encode("utf-8"))
+    nome_lock = "Jarvis-" + identidade.hexdigest()[:24]
+    try:
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.CreateMutexW.argtypes = [
+                ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+            kernel.CreateMutexW.restype = wintypes.HANDLE
+            kernel.ReleaseMutex.argtypes = [wintypes.HANDLE]
+            kernel.ReleaseMutex.restype = wintypes.BOOL
+            kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel.CloseHandle.restype = wintypes.BOOL
+            handle = kernel.CreateMutexW(None, True, "Local\\" + nome_lock)
+            if not handle:
+                return False
+            if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+                kernel.CloseHandle(handle)
+                return False
+            _instancia_lock = ("windows", (kernel, handle))
+            return True
+
+        import fcntl
+
+        caminho = os.path.join(tempfile.gettempdir(), nome_lock + ".lock")
+        arquivo = open(caminho, "a+b")
+        try:
+            fcntl.flock(arquivo.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            arquivo.close()
+            return False
+        _instancia_lock = ("posix", arquivo)
+        return True
+    except Exception:
+        return False
+
+
+def _liberar_lock_instancia():
+    global _instancia_lock
+    if _instancia_lock is None:
+        return
+    tipo, recurso = _instancia_lock
+    _instancia_lock = None
+    try:
+        if tipo == "windows":
+            kernel, handle = recurso
+            kernel.ReleaseMutex(handle)
+            kernel.CloseHandle(handle)
+        else:
+            import fcntl
+            fcntl.flock(recurso.fileno(), fcntl.LOCK_UN)
+            recurso.close()
+    except Exception:
+        pass
+
+
 def main():
+    global _servico_alarmes
     if "--ia-status" in sys.argv:
         mostrar_status_ia()
         return
+    if not _adquirir_lock_instancia():
+        print("Ja existe uma instancia do Jarvis aberta nesta pasta.")
+        return
     if MODO_DEMO:
         falar(DEMO[IDIOMA_FALA])
+        _liberar_lock_instancia()
         return
 
     preaquecer_cache()
 
-    if MODO_DEMO:
-        pass
-    elif cerebro is not None and cerebro.disponivel() and USAR_IA:
-        print("(cerebro de IA ativo: entendo frases livres e decido as acoes)")
-    elif USAR_IA:
-        print("(IA desligada: sem chave. Rode Configurar-IA.bat para ele entender frases livres.)")
+    if not MODO_TEXTO:
+        if MODO_DEMO:
+            pass
+        elif cerebro is not None and cerebro.disponivel() and USAR_IA:
+            print("(cerebro de IA ativo: entendo frases livres e decido as acoes)")
+        elif USAR_IA:
+            print("(IA desligada: sem chave. Rode Configurar-IA.bat para ele entender frases livres.)")
+        falar(f("inicio"))
 
-    falar(f("inicio"))
+    if lembretes is not None:
+        _servico_alarmes = lembretes.ServicoAlarmes().iniciar()
 
     try:
-        if MODO_TEXTO or MODO_ESCUTA == "pressione":
+        if MODO_TEXTO:
+            asyncio.run(_loop_texto())
+        elif MODO_ESCUTA == "pressione":
             # modos antigos: digitar ou apertar ENTER
             while True:
                 try:
@@ -1299,7 +1675,11 @@ def main():
             # modo maos-livres: microfone sempre aberto
             loop_voz()
     finally:
+        if _servico_alarmes is not None:
+            _servico_alarmes.parar()
+            _servico_alarmes = None
         encerrar_microfone()
+        _liberar_lock_instancia()
 
 
 if __name__ == "__main__":

@@ -113,7 +113,10 @@ Se quiser, peço para eu adaptar o `jarvis.py` para o Azure quando você tiver a
 | "oi", "tudo bem" | responde |
 | "dar play", "pausar", "próxima música" | controla o player (Spotify, YouTube…) |
 | "aumentar/abaixar o volume", "silenciar" | volume do Windows |
-| "me lembre em 10 minutos de X" | cria um lembrete por voz |
+| "volume em 35%" | define o volume do Windows |
+| "me lembre em 10 minutos de X" | cria um lembrete persistente |
+| "listar lembretes" | mostra assunto, horário e estado |
+| "confirmar X" | encerra o alarme com esse assunto |
 | "como está a memória do pc" | memória, disco e bateria |
 | "desligar o computador" | pede confirmação antes de desligar |
 | "sair" | encerra o Jarvis |
@@ -124,20 +127,18 @@ Se ele não souber algo, oferece pesquisar no Google para você.
 
 ## Como ensinar coisas novas
 
-Abra `jarvis.py` no Bloco de Notas (botão direito → *Abrir com* → *Notepad*) e edite as listas no topo:
+O catálogo padrão está em `config.example.json`; o Jarvis cria `config.json` local na primeira execução e recarrega as mudanças automaticamente. Esse arquivo é ignorado pelo Git.
 
-```python
-SITES = {
-    "meu banco": "https://www.bb.com.br",
-    "meu trabalho": "https://intranet.minhaempresa.com",
-}
+Você também pode pedir:
 
-PROGRAMAS = {
-    "meu jogo": "start steam://rungameid/123456",
-}
+```text
+adicionar site meu banco
+adicionar programa meu editor
 ```
 
-Salve e abra o Jarvis de novo. Pronto: "abrir meu banco" já funciona.
+O Jarvis pede a URL ou o caminho/URI do aplicativo, mostra o que será salvo e espera sua confirmação. Programas novos aceitam caminho absoluto para executável existente ou URI registrada pelo aplicativo, como `spotify:`.
+
+Os lembretes são salvos em `lembretes.sqlite3` e continuam depois que o Jarvis fecha. Se um lembrete vencer enquanto o app estiver fechado, o alarme começa quando ele abrir e repete a cada 30 segundos até você confirmar pelo assunto.
 
 ---
 
@@ -331,7 +332,7 @@ Voce: quanto é 15% de 340
 Jarvis: Sao 51, senhor.
 ```
 
-O catálogo tem **23 ações**: mídia (play/pausa/próxima/Spotify/YouTube), volume, abrir
+O catálogo tem ações para mídia (play/pausa/próxima/Spotify/YouTube), volume, abrir
 programas e sites, pesquisar, clima, horas, data, lembretes, status do PC, bloquear e
 desligar/reiniciar (estes com confirmação).
 
