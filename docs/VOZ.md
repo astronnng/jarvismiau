@@ -38,9 +38,12 @@ O `/voz` avisa quando nenhuma voz da mistura é nativa em português. Misturar v
 
 O menu de `/` sugere subcomandos, nomes de voz, idiomas, velocidades e presets enquanto você digita.
 
+O `/voz` existe no modo texto (`Jarvis-texto.bat`). O que você configurar fica em `voz.json` e vale também no modo de voz (`Jarvis.bat`) e nos outros, porque todos falam pelo mesmo caminho.
+
 | Comando | O que faz |
 |---|---|
 | `/voz` | estado: motor ativo, mistura, idioma, velocidade |
+| `/voz ajuda` | lista os subcomandos |
 | `/voz usar kokoro` / `/voz usar padrao` | troca o motor ativo (vale na hora; grava em `voz.json`) |
 | `/voz padrao [PERFIL]` | lista ou escolhe o perfil Edge/Windows (ex.: `BR_ANTONIO`) |
 | `/voz testar [frase]` | fala com o motor ativo |
@@ -56,7 +59,7 @@ O menu de `/` sugere subcomandos, nomes de voz, idiomas, velocidades e presets e
 
 **Pesos:** os valores são normalizados. `0.5`, `0.4` e `0.3` equivalem a 42%, 33% e 25%; `60 40` dá 60% e 40%. Misturar vozes de idiomas diferentes (por exemplo `pf_dora` com `bm_daniel`) funciona, mas o programa avisa que pode soar estranho.
 
-**Qual perfil vale na abertura:** a variável `JARVIS_VOZ` (testes) vence `voz.json` (`/voz padrao`), que vence a constante `VOZ` de `jarvis.py`.
+**Qual perfil vale na abertura:** a variável `JARVIS_VOZ` (testes) vence `voz.json` (`/voz padrao`), que vence a constante `VOZ` de `jarvis.py`. Como o `Escolher-voz.bat` grava justamente essa constante, uma escolha feita antes com `/voz padrao` continua valendo por cima dela.
 
 ## ⚡ Desempenho (medido neste computador)
 
@@ -82,6 +85,8 @@ voz/config.py          voz.json: motor, mistura, idioma, velocidade, presets, pr
 voz/kokoro_motor.py    síntese, mistura de estilos, cache em WAV, fala frase a frase, fallback
 voz/comandos.py        o /voz e as sugestões do menu
 voz/instalar.py        download verificado dos modelos (python -m voz.instalar)
+requirements-kokoro.txt  dependências opcionais (kokoro-onnx e afins)
+Instalar-kokoro.bat    instala as dependências e, com confirmação, baixa os modelos
 jarvis.py              gancho em _falar_audio, _tocar_wav, /voz, painel (_status_painel)
 modelos/kokoro/        modelos baixados          (ignorado pelo Git)
 voz.json               sua configuração de voz   (ignorado pelo Git)
@@ -103,6 +108,6 @@ As frases do Jarvis saem **sem acento** (`Nao`, `Sao`, `Ola`). O espeak lê melh
 | `/voz usar kokoro` diz que não dá | Leia o motivo: normalmente falta rodar `Instalar-kokoro.bat` ou `/voz kokoro instalar`. |
 | A primeira fala depois de abrir demora | O modelo está carregando e aquecendo (~3 s). Depois disso fica mais rápido. |
 | Frases novas demoram ~1,5 s | É o custo da síntese local; o cache resolve as repetidas. |
-| Sotaque forte | Veja a seção sobre idioma e sotaque: adicione `pm_alex`, `pm_santa` ou `pf_dora` à mistura. |
+| Sotaque forte | Veja a seção sobre idioma e sotaque: aumente o peso de `pm_alex` (já está no padrão) ou inclua `pm_santa` ou `pf_dora` na mistura. |
 | Uma palavra sai estranha | `/voz kokoro pronuncia palavra=como-ler`. |
 | O Jarvis voltou sozinho para a voz padrão | O Kokoro falhou; veja o "último erro" em `/voz`. |

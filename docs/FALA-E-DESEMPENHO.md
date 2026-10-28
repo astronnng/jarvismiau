@@ -7,7 +7,7 @@ Como o Jarvis transforma uma frase em ação, e por que algumas frases respondem
 ```text
 frase  ──►  processar()          mede o tempo (tempos.py)
               │
-              ├─ 1. regras de alarme/cadastro
+              ├─ 1. alarmes e lembretes, depois sair e cadastro   (jarvis._tratar_alarme)
               ├─ 2. atalhos do navegador        (jarvis._atalho_navegador)   ◄─ tolera fala natural
               ├─ 3. regras antigas (hora, volume, abrir site...)
               └─ 4. processar_com_ia()
@@ -20,7 +20,7 @@ Cada camada é uma **via rápida** para a seguinte. Se uma frase não casa com n
 
 ## 1. Tolerância na fala local (`linguagem.py`)
 
-Antes das regras do navegador, `tirar_enchimento` remove o que as pessoas dizem sem mudar o pedido:
+Antes das regras do navegador (e das de alarme e da chave do cache), `tirar_enchimento` remove o que as pessoas dizem sem mudar o pedido:
 
 | Você diz | O Jarvis entende |
 |---|---|
@@ -48,7 +48,7 @@ Comandos: `/cache` (quantas frases) e `/cache limpar`.
 ## 3. Menos prompt, resposta mais rápida
 
 - **Prefixo estável:** em `cerebro.py`, a parte do prompt que não muda (persona, ações, regras) vem primeiro, e hora e contexto vão no fim. O Gemini reaproveita sozinho prefixos repetidos, então as chamadas ficam mais rápidas e baratas. Nunca ponha hora ou contexto na `_parte_fixa`.
-- **Catálogo por grupo:** cada ação tem um `grupo` (`geral` ou `navegador`). Se a frase não fala de navegador (veja `R_FALA_DE_NAVEGADOR` em `jarvis.py`) e o navegador não foi usado nos últimos 5 minutos, as ~35 ações dele e a regra 10 do prompt ficam de fora. O prompt cai de ~9,8 mil para ~3,9 mil caracteres.
+- **Catálogo por grupo:** cada ação tem um `grupo` (`geral` ou `navegador`). Se a frase não fala de navegador (veja `R_FALA_DE_NAVEGADOR` em `jarvis.py`) e o navegador não foi usado nos últimos 5 minutos, as ~35 ações dele e a regra 10 do prompt ficam de fora. O prompt cai de ~10 mil para ~4,3 mil caracteres.
 - Quando uma frase de navegador não fala nenhuma das palavras de `R_FALA_DE_NAVEGADOR`, acrescente a palavra lá.
 - Ações novas do navegador entram no grupo automaticamente (o fim de `acoes_navegador.py` marca tudo que ele registra).
 
@@ -65,9 +65,18 @@ Cada comando vira uma linha em `tempos.jsonl` (local, ignorado pelo Git, contém
 - **Etapas:** `ia` (rede + Gemini), `acao` (executar), `fala` (voz).
 - Rode `/tempos` no Jarvis para ver a mediana por caminho e por etapa. Depois de usar um pouco, ela mostra onde o tempo realmente vai.
 
+## 5. Alarmes e lembretes na fala
+
+As frases de encerrar alarme (`_tratar_alarme`, em `jarvis.py`) rodam **antes** da regra de sair, para que "encerrar o lembrete" não feche o Jarvis. Elas testam a frase como foi dita e sem o enchimento.
+
+- **Com um alarme tocando:** `ok, verificado`, `feito`, `encerre`, `pare`, `para`, `chega`, `ok`, `pode encerrar`... encerram o que está tocando. Com assunto (`ok, discord verificado`, `encerra o do discord`), encerram só aquele.
+- **Verbos ambíguos** (encerrar, parar, cancelar, desativar) sozinhos só valem como alarme quando há um alarme tocando ou a frase cita "alarme" ou "lembrete". Fora disso, "cancelar desligamento" e "pare a música" seguem para os seus próprios comandos. `confirmar X` continua valendo sempre.
+- **Nada tocando:** "encerrar o lembrete" cancela um lembrete que ainda não venceu: o do assunto citado, ou o único pendente. Havendo vários, o Jarvis lista e pergunta qual. Um alarme tocando tem prioridade sobre cancelar um futuro.
+- Frases que citam "lembrete", "alarme", "aviso", "timer" ou "cronômetro" nunca disparam a regra de sair.
+
 ## 🧪 Testes
 
-`tests/test_naturalidade.py` cobre o normalizador, as variações de fala, o cache, o roteamento de catálogo, o prefixo estável do prompt e a medição. Nada disso usa rede.
+`tests/test_naturalidade.py` cobre o normalizador, as variações de fala, o cache, o roteamento de catálogo, o prefixo estável do prompt e a medição. `tests/test_alarmes_fala.py` cobre o encerramento de alarmes e lembretes. Nada disso usa rede.
 
 ## ⚠️ Limites conhecidos
 

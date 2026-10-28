@@ -73,7 +73,7 @@ pessoa que achar o bot recebe "Este Jarvis é privado".
 | `abrir calculadora` | abre o programa no PC |
 | `pesquisar preço do dólar` | pesquisa no PC |
 | `bloquear o computador` | trava o PC |
-| `/voz` | mostra a voz ativa |
+| `/voz` | mostra a voz ativa (perfil Edge/Windows, usado no áudio das respostas) |
 | `/id` | mostra o ID do chat |
 | `/ajuda` | lista os comandos |
 
@@ -81,6 +81,21 @@ pessoa que achar o bot recebe "Este Jarvis é privado".
 O celular recebe a confirmação em texto e voz. Isso é ótimo para chegar em casa
 e mandar o PC abrir as coisas antes de sentar. Se quiser que ele abra sites no
 **celular**, é outra configuração — me avise que eu ajusto.
+
+**Voz Kokoro:** a voz Kokoro do terminal (`/voz` no `Jarvis-texto.bat`, veja `docs/VOZ.md`) não é usada
+pelo bot. O áudio que chega no Telegram continua sendo gerado com o perfil Edge, e o `/voz` do bot só
+mostra esse perfil.
+
+**Navegador:** os comandos do navegador (`docs/NAVEGADOR.md`) também funcionam pelo bot, com limites:
+
+- Os que só abrem endereços (pesquisas, Maps, rastreio, GitHub) abrem no navegador padrão do PC.
+- Os que leem ou clicam em páginas (abrir o segundo vídeo, abas, Gmail) precisam da extensão conectada
+  ao programa que está usando a porta da ponte. O bot só sobe essa ponte quando é preciso e
+  **se o Jarvis (`Jarvis.bat`, `Jarvis-texto.bat`...) não estiver aberto**; com ele aberto, a porta já
+  está em uso e o bot avisa que a ponte não está ativa. Na primeira tentativa, a extensão pode levar
+  alguns segundos para reconectar.
+- Passos sensíveis do modo genérico (enviar, comprar, pagar, excluir...) são recusados pelo Telegram,
+  porque o bot não consegue pedir a confirmação.
 
 ---
 
@@ -170,10 +185,11 @@ Assim ele roda sem janela atrapalhando. Para ver se está vivo, mande `/voz` no 
 
 Quando quiser ir além, eu monto:
 
-- **Lembretes e alarmes** ("me lembre de X às 18h") com aviso no Telegram.
-- **Respostas com IA de verdade** — hoje ele entende comandos por padrão; com
-  uma chave de API (Gemini tem plano gratuito) ele passaria a conversar sobre
-  qualquer assunto, mantendo os comandos do PC.
+- **Aviso dos lembretes no Telegram** — os lembretes e alarmes já existem ("me lembre em 10
+  minutos de X"), mas o alarme toca e fala no PC; o aviso no celular ainda não.
+- **Respostas com IA de verdade** — já funcionam: com a chave do Gemini configurada
+  (`Configurar-IA.bat`, plano gratuito), o bot entende frases livres e conversa, mantendo os
+  comandos do PC. Veja `IA-AUTONOMO.md`.
 - **Notificações do PC no celular** (por exemplo, avisar quando um download
   termina ou quando alguém tenta errar a senha).
 - **Botão de pânico / status do PC** ("como está a memória?", "que música está tocando?").

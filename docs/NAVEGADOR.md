@@ -49,6 +49,7 @@ Se a porta 8765 estiver ocupada, defina `JARVIS_NAVEGADOR_PORTA` antes de abrir 
 | `youtube_pesquisar` + `youtube_abrir_resultado` | "pesquisa lofi no YouTube e abre o primeiro" |
 | `youtube_abrir_resultado` com `nova_aba` | "abre o segundo em outra aba" |
 | `youtube_abrir_varios` | "abre os 3 primeiros vídeos" |
+| `resultado_abrir` | "abre o segundo", "abre o último", "abre o terceiro em outra aba" (descobre sozinho se é da última pesquisa do YouTube, do Google, do histórico ou dos favoritos) |
 | `youtube_player` | "pausa", "próximo vídeo", "velocidade 1.5", "pula o anúncio", "legendas" |
 | `google_pesquisar` + `google_abrir_resultado` | "pesquisa X e abre o segundo resultado" |
 | `gmail_nao_lidos`, `gmail_listar`, `gmail_abrir` | "quantos e-mails não lidos?", "abre o primeiro e-mail" |
@@ -74,6 +75,10 @@ Se a porta 8765 estiver ocupada, defina `JARVIS_NAVEGADOR_PORTA` antes de abrir 
 
 **Lista de resultados em memória:** depois de pesquisar no YouTube ou no Google, o Jarvis guarda os resultados por 15 minutos. Assim "abre o primeiro" seguido de "abre o segundo em outra aba" funciona mesmo que você já tenha saído da página de resultados. Uma nova pesquisa descarta a lista antiga.
 
+**Aba reaproveitada:** uma pesquisa nova usa a aba do YouTube (ou do Google) que já estiver aberta, em vez de criar outra. Só abre aba nova se não houver nenhuma do site ou se você pedir "em outra aba". Abrir o N-ésimo resultado usa a mesma aba por padrão no YouTube e uma aba nova no Google, e "ao lado", "em paralelo" ou "em segundo plano" também são entendidos.
+
+**Fala natural e rapidez:** os comandos mais comuns (pesquisar e abrir por posição, controles do player, e-mails, abas, histórico, favoritos) são resolvidos por regras locais, sem passar pelo Gemini, e toleram cortesia e variações ("por favor, pode abrir o segundo vídeo pra mim?", "bota o último", "pesquisa lofi no yt"). O que não casa vai ao Gemini, que conhece todas as ações. Veja [FALA-E-DESEMPENHO.md](FALA-E-DESEMPENHO.md).
+
 **Sem a extensão:** as ações que só abrem endereços (pesquisas, Maps, rastreio, GitHub) caem no navegador padrão do Windows. As que precisam ler ou clicar na página avisam que a extensão não está conectada.
 
 ## 🤖 Modo genérico (`navegador_tarefa`)
@@ -95,6 +100,7 @@ A IA só escolhe números da lista; não executa nada fora desses passos.
 - A extensão só abre endereços `http(s)`.
 - **Permissões da extensão** (`manifest.json`): `tabs`, `scripting`, `alarms`, `tabGroups`, `sessions`, `history`, `bookmarks` e acesso a todos os sites (para ler e clicar nas páginas). Não há permissão de cookies, downloads nem área de transferência de propósito.
 - Os novos atalhos de Spotify Web e YouTube Music (`_PLAYERS` em `navegador/atalhos.py`) usam seletores que **não foram testados nos sites reais**: se algum falhar, use o diagnóstico.
+- **Pelo Telegram:** o bot usa as mesmas ações, mas só sobe a ponte se nenhum Jarvis estiver aberto (a porta é uma só), e recusa os passos sensíveis do modo genérico, porque não consegue pedir a confirmação. Veja `BOT-TELEGRAM.md`.
 
 ## 🛠️ Como estender
 
@@ -105,8 +111,9 @@ A IA só escolhe números da lista; não executa nada fora desses passos.
    itens = _aguardar_itens(seletor='a.titulo', excluir='.anuncio', filtro_href=r'/produto/', limite=20)
    ```
 2. **Ação** em `acoes_navegador.py` com `@acao(nome, descrição, parâmetros)` e `@_seguro` (este converte `ErroNavegador` na frase falada).
-3. **Regra** no prompt de `cerebro.py` (item "NAVEGADOR"), se a IA precisar de uma dica de quando usar.
-4. **Teste** em `tests/test_navegador.py`, com a `PonteFalsa` (não precisa de navegador).
+3. **Regra** no prompt de `cerebro.py` (`REGRA_NAVEGADOR`), se a IA precisar de uma dica de quando usar. Ações registradas em `acoes_navegador.py` entram sozinhas no grupo `navegador`; se a frase do novo site usar palavras que ainda não estão em `R_FALA_DE_NAVEGADOR` (em `jarvis.py`), acrescente-as ali.
+4. **Frase rápida (opcional):** se o comando for muito usado, trate-o em `_atalho_navegador` (`jarvis.py`), para ele não depender do Gemini.
+5. **Teste** em `tests/test_navegador.py`, com a `PonteFalsa` (não precisa de navegador).
 
 Quando um site mudar o HTML e um atalho parar de achar elementos, só o seletor em `atalhos.py` precisa mudar (por exemplo `_YT_SELETOR`, `_GOOGLE_SELETOR`, `_GMAIL_LINHA`).
 
@@ -140,7 +147,7 @@ Adicione uma entrada em `COMANDOS` no `extensao/background.js` (e, se rodar na p
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-`tests/test_navegador.py` cobre a ponte HTTP real (com uma extensão simulada), os atalhos e o modo genérico, tudo sem abrir navegador.
+`tests/test_navegador.py` cobre a ponte HTTP real (com uma extensão simulada), os atalhos, o modo genérico e as frases locais, tudo sem abrir navegador. As variações de fala natural ficam em `tests/test_naturalidade.py`.
 
 ## 🩹 Solução de problemas
 

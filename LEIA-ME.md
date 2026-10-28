@@ -28,7 +28,7 @@ Sem conta em nuvem, sem chave de API: tudo roda no seu computador.
 - **`comparador-vozes.html`** → compare as 8 vozes brasileiras no navegador.
 - **`Iniciar-bot.bat`** → liga o Jarvis no Telegram (guia: `BOT-TELEGRAM.md`).
 - **`Configurar-IA.bat`** → liga o cérebro de IA, que entende frases livres (guia: `IA-AUTONOMO.md`).
-- **`Jarvis-continuo.bat`** → atende qualquer fala, sem precisar dizer "Jarvis".
+- **`Instalar-kokoro.bat`** → instala a voz Kokoro, opcional e local (guia: `docs/VOZ.md`).
 
 Na primeira vez o Windows pode pedir permissão para usar o microfone: clique em **Permitir**.
 
@@ -47,6 +47,10 @@ O catálogo gratuito de vozes neurais tem **3 vozes brasileiras nativas** e vár
 Dois cliques em **`Escolher-voz.bat`**: ele toca uma frase de teste em cada voz, você digita o
 número, e se gostar aperta `s`. O programa **grava a escolha sozinho** no `jarvis.py`. Não precisa
 editar nada à mão.
+
+Dentro do Jarvis em modo texto, `/voz padrao` lista os perfis e `/voz padrao NOME` troca na hora, sem
+reiniciar. Essa escolha fica em `voz.json` e **vence** a constante `VOZ` do `jarvis.py` (e, portanto,
+o `Escolher-voz.bat`); só a variável de ambiente `JARVIS_VOZ`, usada para testes, vence o `voz.json`.
 
 Ou abra **`comparador-vozes.html`** para ouvir as oito vozes brasileiras de uma vez no navegador.
 
@@ -79,6 +83,17 @@ Para mudar tom e velocidade, edite o perfil correspondente em `PERFIS`:
 "BR_ANTONIO": _br("pt-BR-AntonioNeural", "-8%", "-6Hz"),
 #                                        ↑velocidade  ↑tom (mais negativo = mais grave)
 ```
+
+### Voz local opcional: Kokoro
+
+Além dessas vozes, existe uma voz neural que roda **no seu computador**, sem internet, e permite
+**misturar vozes** com proporções (por exemplo `bm_daniel`, `am_michael` e `pm_alex`), escolher o
+idioma dos fonemas e a velocidade. Ela é opcional: com o Kokoro desligado, nada muda. Se ele estiver
+ativo e falhar por qualquer motivo, o Jarvis volta sozinho para a voz neural acima e, sem internet,
+para a voz do Windows.
+
+Instale com **`Instalar-kokoro.bat`** (ele pede confirmação antes de baixar os modelos, cerca de
+350 MB) e configure com `/voz` no `Jarvis-texto.bat`. Guia completo: **`docs/VOZ.md`**.
 
 ### Quer ainda mais natural que isso?
 
@@ -117,6 +132,11 @@ Se quiser, peço para eu adaptar o `jarvis.py` para o Azure quando você tiver a
 | "me lembre em 10 minutos de X" | cria um lembrete persistente |
 | "listar lembretes" | mostra assunto, horário e estado |
 | "confirmar X" | encerra o alarme com esse assunto |
+| "ok, verificado", "encerre" | encerra o alarme que está tocando |
+| "encerrar o lembrete" | cancela um lembrete que ainda não venceu |
+| "pesquisa lofi no youtube e abre o primeiro", "abre o segundo em outra aba" | controla o seu navegador (precisa da extensão: `docs/NAVEGADOR.md`) |
+| "silencia a aba do youtube", "fecha as abas duplicadas" | gerencia as abas do navegador |
+| "quantos e-mails não lidos eu tenho" | lê a contagem do Gmail (somente leitura) |
 | "como está a memória do pc" | memória, disco e bateria |
 | "desligar o computador" | pede confirmação antes de desligar |
 | "sair" | encerra o Jarvis |
@@ -138,7 +158,7 @@ adicionar programa meu editor
 
 O Jarvis pede a URL ou o caminho/URI do aplicativo, mostra o que será salvo e espera sua confirmação. Programas novos aceitam caminho absoluto para executável existente ou URI registrada pelo aplicativo, como `spotify:`.
 
-Os lembretes são salvos em `lembretes.sqlite3` e continuam depois que o Jarvis fecha. Se um lembrete vencer enquanto o app estiver fechado, o alarme começa quando ele abrir e repete a cada 30 segundos até você confirmar pelo assunto.
+Os lembretes são salvos em `lembretes.sqlite3` e continuam depois que o Jarvis fecha. Se um lembrete vencer enquanto o app estiver fechado, o alarme começa quando ele abrir e repete a cada 30 segundos até você confirmar pelo assunto ou, com ele tocando, dizer algo como "ok, verificado" ou "encerre". Quando nada está tocando, "encerrar o lembrete" cancela o lembrete que ainda não venceu (o do assunto citado, ou o único pendente; havendo vários, ele pergunta qual).
 
 ---
 
@@ -153,6 +173,8 @@ Os lembretes são salvos em `lembretes.sqlite3` e continuam depois que o Jarvis 
 | Não fala em voz alta | No modo texto ele só imprime. No `Jarvis.bat` ele fala; se ficar mudo, verifique o volume e o dispositivo de saída. |
 | A voz neural não sai | Ela precisa de internet e de `edge-tts` + `pygame` instalados (o `instalar.bat` já instala). Sem internet, o Jarvis cai automaticamente para a voz do Windows. |
 | A voz neural demora ~1s para começar | Normal: o texto é gerado na hora. Frases curtas (como as deste Jarvis) levam menos de 1 segundo. |
+| Ativei o Kokoro e o Jarvis voltou para a voz de antes | Ele cai sozinho para a voz padrão quando o Kokoro falha. Digite `/voz`: o "último erro" mostra o motivo. Guia: `docs/VOZ.md`. |
+| Comandos do navegador dizem que a extensão não está conectada | Abra o Jarvis, recarregue a extensão em `chrome://extensions` e veja o selo **ON**. Guia: `docs/NAVEGADOR.md`. |
 
 **Dica de segurança:** este Jarvis só executa ações de uma lista fixa. Nada de apagar arquivos, mexer em dinheiro ou enviar mensagens sem você confirmar. Mantenha assim.
 
@@ -334,7 +356,11 @@ Jarvis: Sao 51, senhor.
 
 O catálogo tem ações para mídia (play/pausa/próxima/Spotify/YouTube), volume, abrir
 programas e sites, pesquisar, clima, horas, data, lembretes, status do PC, bloquear e
-desligar/reiniciar (estes com confirmação).
+desligar/reiniciar (estes com confirmação), além do controle do navegador (abas, YouTube,
+Google, Gmail em leitura, Spotify Web, histórico e favoritos, e qualquer site em modo genérico).
+
+Frases que a IA já resolveu ficam em cache: da segunda vez, a mesma frase é executada na hora,
+sem internet. Detalhes em **`docs/FALA-E-DESEMPENHO.md`**.
 
 **Como o controle fica com você:** a IA **não tem acesso ao computador**. Ela só pode
 escolher nomes de uma lista fechada (`acoes.py`); o que não está na lista é rejeitado.
