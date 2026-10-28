@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Jarvis - ponte do navegador",
+  "version": "1.1.0",
+  "description": "Deixa o Jarvis (rodando neste computador) controlar abas e paginas do seu navegador, usando a sua sessao logada.",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "tabs",
+    "scripting",
+    "alarms",
+    "tabGroups",
+    "sessions",
+    "history",
+    "bookmarks"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_title": "Jarvis"
+  }
+}
