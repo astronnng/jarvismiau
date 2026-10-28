@@ -932,6 +932,15 @@ def _assuntos_lembretes():
     return [item["motivo"] for item in lembretes.Lembretes().listar()]
 
 
+def _status_painel():
+    """Dados do painel e da barra inferior do terminal."""
+    voz = VOZ.replace("_", " ")
+    return {
+        "voz": f"{voz} · {PERFIL['motor']}".upper(),
+        "lembretes": lembretes.Lembretes().listar() if lembretes is not None else [],
+    }
+
+
 def _executar_comando_slash(linha):
     """Executa atalhos do terminal sem encaminhar slash commands para o Gemini."""
     comando, _, argumento = linha.strip()[1:].partition(" ")
@@ -990,7 +999,7 @@ async def _loop_texto():
                 break
         return
 
-    _cli = cli_terminal.JarvisCLI(_alvos_catalogo, _assuntos_lembretes)
+    _cli = cli_terminal.JarvisCLI(_alvos_catalogo, _assuntos_lembretes, _status_painel)
     _cli.cabecalho(bool(cerebro and cerebro.disponivel() and USAR_IA))
     await asyncio.to_thread(falar, f("inicio"))
     while True:

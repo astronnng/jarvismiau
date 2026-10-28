@@ -156,10 +156,16 @@ def volume(ctx, sentido="aumentar", quanto=2, percentual=None, **kw):
         if not NO_WINDOWS:
             return "O ajuste exato do volume so esta disponivel no Windows, senhor."
         try:
+            import comtypes
             from pycaw.pycaw import AudioUtilities
 
-            AudioUtilities.GetSpeakers().EndpointVolume.SetMasterVolumeLevelScalar(
-                percentual / 100.0, None)
+            # Os comandos rodam em threads de um pool; cada uma precisa iniciar o COM.
+            comtypes.CoInitialize()
+            try:
+                AudioUtilities.GetSpeakers().EndpointVolume.SetMasterVolumeLevelScalar(
+                    percentual / 100.0, None)
+            finally:
+                comtypes.CoUninitialize()
             return f"Volume ajustado para {percentual} por cento, senhor."
         except Exception:
             return "Nao consegui ajustar o volume exato neste dispositivo de audio, senhor."
