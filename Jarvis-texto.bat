@@ -8,5 +8,6 @@ if not exist ".venv\Scripts\activate.bat" (
     exit /b
 )
 call ".venv\Scripts\activate.bat"
+set "JARVIS_INTERACTIVE=1"
 python jarvis.py --texto
 pause

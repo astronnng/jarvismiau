@@ -168,6 +168,20 @@ class JarvisDispatchTests(unittest.TestCase):
         executar.assert_called_once_with(
             "confirmar_lembrete", {"assunto": ""})
 
+    def test_relato_natural_confirma_alarme_sem_exigir_barra(self):
+        for comando, assunto in (
+                ("ok, verifiquei", ""),
+                ("pok, arroz verificado", "arroz"),
+                ("verifiquei o arroz", "arroz")):
+            with self.subTest(comando=comando), \
+                    patch.object(jarvis, "falar"), \
+                    patch.object(jarvis.lembretes, "Lembretes") as store, \
+                    patch.object(jarvis, "executar_acao") as executar:
+                store.return_value.tem_alarmas_tocando.return_value = True
+                jarvis.processar(comando)
+            executar.assert_called_once_with(
+                "confirmar_lembrete", {"assunto": assunto})
+
     def test_nao_quero_sem_alarme_nao_chama_confirmacao(self):
         with patch.object(jarvis, "falar"), \
                 patch.object(jarvis.lembretes, "Lembretes") as store, \

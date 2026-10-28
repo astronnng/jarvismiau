@@ -30,7 +30,6 @@ import unicodedata
 import urllib.request
 import urllib.parse
 import webbrowser
-from contextlib import nullcontext
 
 try:
     import acoes
@@ -526,7 +525,8 @@ def preaquecer_cache():
         with ThreadPoolExecutor(max_workers=4) as pool:
             list(pool.map(gerar_um, faltando))
 
-    print(f"(preparando {len(faltando)} frases em segundo plano, pode falar normalmente)")
+    if not MODO_TEXTO:
+        print(f"(preparando {len(faltando)} frases em segundo plano, pode falar normalmente)")
     threading.Thread(target=trabalho, daemon=True).start()
 
 
@@ -550,6 +550,11 @@ def _falar_audio(texto):
         _falar_windows(texto)
     else:
         _falar_windows(texto)
+
+
+def _falar_audio_serializado(texto):
+    with _fala_lock:
+        _falar_audio(texto)
 
 
 def falar(texto):
@@ -583,6 +588,30 @@ def _notificar_alarmas_pendentes(antes_de_falar=None):
                 _falar_audio(texto)
         else:
             falar(texto)
+    return len(pendentes)
+
+
+async def _notificar_alarmas_durante_entrada():
+    """Mostra alarmes suspendendo o prompt e restaurando o buffer digitado."""
+    if _servico_alarmes is None:
+        return 0
+    for erro in _servico_alarmes.drenar_erros():
+        if _cli is not None and _cli.interativo:
+            await _cli.imprimir_durante_entrada(lambda erro=erro: _cli.erro(erro))
+        else:
+            print(f"(nao consegui verificar os lembretes: {erro})")
+
+    pendentes = _servico_alarmes.drenar()
+    for lembrete in pendentes:
+        if _cli is not None and _cli.interativo:
+            await _cli.imprimir_durante_entrada(
+                lambda item=lembrete: _cli.alarme(item["motivo"]))
+        else:
+            print(f"\nALARME: {lembrete['motivo']}")
+        await asyncio.to_thread(
+            _falar_audio_serializado,
+            f"Senhor, alarme: {lembrete['motivo']}."
+        )
     return len(pendentes)
 
 
@@ -910,7 +939,7 @@ def _executar_comando_slash(linha):
     argumento = argumento.strip()
     if comando == "ajuda":
         _cli.ajuda()
-    elif comando == "lembretes":
+    elif comando in ("lembrete", "lembretes"):
         executar_acao("listar_lembretes")
     elif comando == "volume":
         if not re.fullmatch(r"\d{1,3}%?", argumento):
@@ -964,29 +993,28 @@ async def _loop_texto():
     _cli = cli_terminal.JarvisCLI(_alvos_catalogo, _assuntos_lembretes)
     _cli.cabecalho(bool(cerebro and cerebro.disponivel() and USAR_IA))
     await asyncio.to_thread(falar, f("inicio"))
-    contexto_saida = (cli_terminal.patch_stdout(raw=_cli.com_cores)
-                      if _cli.interativo else nullcontext())
-    with contexto_saida:
-        while True:
-            try:
-                entrada = asyncio.create_task(_cli.entrada())
-                while not entrada.done():
-                    await asyncio.wait((entrada,), timeout=0.2)
-                    if not entrada.done() and _servico_alarmes is not None:
-                        await asyncio.to_thread(_notificar_alarmas_pendentes)
-                comando = entrada.result().strip()
-            except (EOFError, KeyboardInterrupt, asyncio.CancelledError):
-                await asyncio.to_thread(falar, f("sair"))
-                break
+    while True:
+        try:
+            monitorar_alarmas = (
+                _notificar_alarmas_durante_entrada
+                if _cli.interativo and _servico_alarmes is not None else None
+            )
+            comando = (await _cli.entrada(monitorar_alarmas)).strip()
+            if not _cli.interativo and _servico_alarmes is not None:
+                # Sem TUI, evita escrever enquanto input() possui a linha.
+                await asyncio.to_thread(_notificar_alarmas_pendentes)
+        except (EOFError, KeyboardInterrupt, asyncio.CancelledError):
+            await asyncio.to_thread(falar, f("sair"))
+            break
 
-            if not comando:
-                continue
-            if comando.startswith("/"):
-                continuar = await asyncio.to_thread(_executar_comando_slash, comando)
-            else:
-                continuar = await asyncio.to_thread(processar, comando)
-            if not continuar:
-                break
+        if not comando:
+            continue
+        if comando.startswith("/"):
+            continuar = await asyncio.to_thread(_executar_comando_slash, comando)
+        else:
+            continuar = await asyncio.to_thread(processar, comando)
+        if not continuar:
+            break
     _cli = None
 
 
@@ -1268,6 +1296,13 @@ R_DISPENSAR_ALARME = (
     r"^(?:nao quero|nao precisa|ja vi|ja fiz|ja cuidei|pronto|dispensa|"
     r"pode parar|pode encerrar|pode desligar)(?:\s+(?:o|esse|este)\s+(?:alarme|lembrete))?$"
 )
+R_RELATO_ALARME_RESOLVIDO = (
+    r"^(?:(?:ok|okay|pok|pock|certo|pronto|feito)[,! ]+)?"
+    r"(?:(?:ja\s+)?(?:vi|fiz|verifiquei|chequei|conferi|resolvi|terminei)"
+    r"(?:\s+(?:(?:o|a)\s+)?(?:alarme|lembrete))?(?:\s+(?P<assunto_verbo>.+))?"
+    r"|(?P<assunto_estado>.+?)\s+(?:verificado|verificada|conferido|conferida|"
+    r"resolvido|resolvida|feito|feita))$"
+)
 R_CADASTRAR_CATALOGO = (
     r"^\s*(?:adicionar|adiciona|cadastrar|cadastre|incluir|inclua)\s+"
     r"(?:(?:o|a|um|uma)\s+)?(?P<tipo>site|programa|aplicativo|app)\b\s*(?P<resto>.*)$"
@@ -1444,6 +1479,14 @@ def processar(comando):
     confirmar = re.match(R_CONFIRMAR_LEMBRETE, c)
     if confirmar:
         executar_acao("confirmar_lembrete", {"assunto": confirmar.group(1).strip()})
+        return True
+    relato = re.match(R_RELATO_ALARME_RESOLVIDO, c)
+    if (relato and lembretes is not None
+            and lembretes.Lembretes().tem_alarmas_tocando()):
+        assunto = relato.group("assunto_verbo") or relato.group("assunto_estado") or ""
+        assunto = re.sub(r"^(?:o|a|os|as)\s+", "", assunto).strip()
+        assunto = re.sub(r"^(?:do|da|de|sobre)\s+", "", assunto).strip()
+        executar_acao("confirmar_lembrete", {"assunto": assunto})
         return True
     if (re.match(R_DISPENSAR_ALARME, c) and lembretes is not None
             and lembretes.Lembretes().tem_alarmas_tocando()):

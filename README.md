@@ -52,7 +52,7 @@ No modo texto, digite frases normalmente ou comece com `/` para abrir o menu de 
 sair
 ```
 
-Atalhos disponíveis: `/lembretes`, `/volume 35`, `/aumentar-volume`, `/diminuir-volume`, `/silenciar`, `/play`, `/pausar`, `/proxima`, `/anterior`, `/parar`, `/abrir <alvo>`, `/confirmar <assunto>`, `/limpar` e `/sair`.
+Atalhos disponíveis: `/lembrete` ou `/lembretes`, `/volume 35`, `/aumentar-volume`, `/diminuir-volume`, `/silenciar`, `/play`, `/pausar`, `/proxima`, `/anterior`, `/parar`, `/abrir <alvo>`, `/confirmar <assunto>`, `/limpar` e `/sair`.
 
 Também é possível executar diretamente pelo terminal:
 
@@ -92,7 +92,7 @@ adicionar programa meu editor
 
 Ele pede a URL ou o caminho/URI do aplicativo, mostra os dados e só grava depois da confirmação. Para programas, informe um caminho absoluto para um executável existente ou uma URI de aplicativo, como `spotify:`.
 
-Os lembretes ficam em `lembretes.sqlite3`, também ignorado pelo Git. Eles continuam salvos depois de fechar o Jarvis; se vencerem enquanto ele estiver fechado, o alarme começa quando o Jarvis abrir. O alarme fala o assunto e toca um sinal a cada 30 segundos até você dizer, por exemplo, `confirmar arroz no fogo`.
+Os lembretes ficam em `lembretes.sqlite3`, também ignorado pelo Git. Eles continuam salvos depois de fechar o Jarvis; se vencerem enquanto ele estiver fechado, o alarme começa quando o Jarvis abrir. O alarme fala o assunto e toca um sinal a cada 30 segundos até você dizer, por exemplo, `confirmar arroz no fogo`, `ok, verifiquei` ou `arroz verificado`.
 
 O ajuste percentual do volume usa o dispositivo de saída padrão do Windows e precisa da dependência `pycaw`, instalada por `instalar.bat`.
 
