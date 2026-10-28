@@ -8,6 +8,22 @@ from prompt_toolkit.document import Document
 
 import cli
 import jarvis
+import tempfile
+import tempos
+from pathlib import Path
+
+
+def setUpModule():
+    """jarvis.processar mede tempos: nos testes, o log vai para uma pasta descartavel."""
+    global _pasta_tempos, _tempos_original
+    _pasta_tempos = tempfile.TemporaryDirectory()
+    _tempos_original = tempos.ARQUIVO
+    tempos.ARQUIVO = Path(_pasta_tempos.name) / "tempos.jsonl"
+
+
+def tearDownModule():
+    tempos.ARQUIVO = _tempos_original
+    _pasta_tempos.cleanup()
 
 
 class CompleterTests(unittest.TestCase):
@@ -21,9 +37,11 @@ class CompleterTests(unittest.TestCase):
         return list(self.completer.get_completions(Document(texto), None))
 
     def test_sugere_comandos_a_partir_da_barra(self):
-        sugestoes = self.completar("/vo")
-        self.assertEqual([item.text for item in sugestoes], ["lume"])
+        sugestoes = self.completar("/vol")
+        self.assertEqual([item.text for item in sugestoes], ["ume"])
         self.assertEqual(sugestoes[0].display_text, "/volume <0-100>")
+        # "/vo" e ambiguo de proposito: volume e voz
+        self.assertEqual(sorted(item.text for item in self.completar("/vo")), ["lume", "z"])
 
     def test_completa_alvo_dinamico_com_alias_de_varias_palavras(self):
         sugestoes = self.completar("/abrir bloco d")

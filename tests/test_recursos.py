@@ -14,6 +14,20 @@ import acoes
 import catalogo
 import jarvis
 from lembretes import Lembretes, ServicoAlarmes
+import tempos
+
+
+def setUpModule():
+    """jarvis.processar mede tempos: nos testes, o log vai para uma pasta descartavel."""
+    global _pasta_tempos, _tempos_original
+    _pasta_tempos = tempfile.TemporaryDirectory()
+    _tempos_original = tempos.ARQUIVO
+    tempos.ARQUIVO = Path(_pasta_tempos.name) / "tempos.jsonl"
+
+
+def tearDownModule():
+    tempos.ARQUIVO = _tempos_original
+    _pasta_tempos.cleanup()
 
 
 class CatalogoTests(unittest.TestCase):

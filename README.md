@@ -15,6 +15,9 @@ O projeto roda localmente, sem exigir conta em nuvem ou chave de API. O reconhec
 - 🔒 Bloqueio do computador.
 - 🔊 Controle de volume por comandos ou percentual.
 - ⏰ Lembretes persistentes, com alarme repetido até confirmação.
+- 🧭 Controle do seu Chrome/Edge (com a sessão logada): abrir o N-ésimo vídeo ou resultado, controlar o player, ler e-mails e tarefas em qualquer site. Veja [docs/NAVEGADOR.md](docs/NAVEGADOR.md).
+- 🗣️ Fala natural tolerante, cache das frases já resolvidas pelo Gemini e medição de tempos. Veja [docs/FALA-E-DESEMPENHO.md](docs/FALA-E-DESEMPENHO.md).
+- 🎙️ Voz Kokoro opcional (local, com mistura de vozes) e o comando `/voz`, sem alterar a voz e o fallback atuais. Veja [docs/VOZ.md](docs/VOZ.md).
 - ⌨️ Modo texto para testar sem microfone.
 - 🛠️ Catálogo editável de sites e programas, recarregado sem reiniciar.
 
@@ -129,6 +132,10 @@ O projeto é específico para Windows e depende de serviços externos para recon
 ```text
 .
 ├── jarvis.py
+├── acoes.py / acoes_navegador.py   # catálogo de ações (e as do navegador)
+├── navegador/                      # ponte, atalhos por site e modo genérico
+├── extensao/                       # extensão do Chrome/Edge
+├── docs/NAVEGADOR.md               # guia do controle do navegador
 ├── requirements.txt
 ├── instalar.bat
 ├── Jarvis.bat

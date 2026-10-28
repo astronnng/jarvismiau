@@ -25,24 +25,31 @@ import lembretes as armazenamento_lembretes
 CATALOGO = {}
 
 
-def acao(nome, descricao, parametros="", risco=False):
-    """Registra uma acao no catalogo."""
+def acao(nome, descricao, parametros="", risco=False, grupo="geral"):
+    """Registra uma acao no catalogo. `grupo` permite mandar so parte do catalogo para a IA."""
     def registrar(funcao):
         CATALOGO[nome] = {
             "nome": nome,
             "descricao": descricao,
             "parametros": parametros,
             "risco": risco,      # se True, o Jarvis pede confirmacao antes
+            "grupo": grupo,
             "funcao": funcao,
         }
         return funcao
     return registrar
 
 
-def listar_para_ia():
-    """Lista compacta do catalogo, para colocar no prompt da IA."""
+def listar_para_ia(grupos=None):
+    """
+    Lista compacta do catalogo, para colocar no prompt da IA.
+    grupos=None manda tudo; um conjunto (ex: {"geral"}) manda so essas acoes, o que encurta
+    o prompt (e a latencia) quando a frase claramente nao e do navegador.
+    """
     linhas = []
     for nome, info in CATALOGO.items():
+        if grupos is not None and info.get("grupo", "geral") not in grupos:
+            continue
         params = f" | parametros: {info['parametros']}" if info["parametros"] else ""
         risco = " | EXIGE CONFIRMACAO" if info["risco"] else ""
         linhas.append(f"- {nome}: {info['descricao']}{params}{risco}")
@@ -312,10 +319,12 @@ def listar_lembretes(ctx, **kw):
     return f"Tenho {len(ativos)} lembrete(s): " + "; ".join(linhas) + ", senhor."
 
 
-@acao("confirmar_lembrete", "Confirma e encerra um alarme de lembrete pelo assunto",
-      "assunto: trecho ou titulo do lembrete que esta tocando")
+@acao("confirmar_lembrete",
+      "Encerra o alarme que esta tocando; se nenhum estiver tocando, cancela um lembrete futuro. "
+      "Serve para 'ok, verificado', 'encerra o alarme', 'cancela o lembrete do arroz'",
+      "assunto: trecho ou titulo do lembrete (vazio = o alarme que esta tocando, ou o unico lembrete pendente)")
 def confirmar_lembrete(ctx, assunto="", **kw):
-    return armazenamento_lembretes.Lembretes().confirmar(assunto)
+    return armazenamento_lembretes.Lembretes().encerrar(assunto)
 
 
 # ============================================================================
@@ -420,5 +429,25 @@ def existe(nome):
     return nome in CATALOGO
 
 
+def grupo_de(nome):
+    return CATALOGO.get(nome, {}).get("grupo", "geral")
+
+
+def assinatura():
+    """Impressao digital dos nomes e parametros do catalogo: muda se uma acao mudar."""
+    import hashlib
+    base = "\n".join(sorted(f"{n}|{i['parametros']}" for n, i in CATALOGO.items()))
+    return hashlib.sha1(base.encode("utf-8")).hexdigest()[:16]
+
+
 def eh_arriscada(nome):
     return bool(CATALOGO.get(nome, {}).get("risco"))
+
+
+# ============================================================================
+# ACOES DO NAVEGADOR (extensao no Chrome/Edge) - ver docs/NAVEGADOR.md
+# ============================================================================
+try:
+    import acoes_navegador  # noqa: E402,F401  (registra as acoes no CATALOGO)
+except ImportError:
+    pass    # sem a pasta navegador/, o Jarvis segue sem controlar o navegador

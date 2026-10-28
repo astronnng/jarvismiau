@@ -44,6 +44,10 @@ COMANDOS = [
     ("parar", "parar midia"),
     ("abrir <alvo>", "abrir site ou programa do catalogo"),
     ("confirmar <assunto>", "encerrar um alarme"),
+    ("navegador [diagnostico]", "extensao conectada? (diagnostico testa a aba atual)"),
+    ("voz [kokoro|padrao|testar]", "escolher e ajustar a voz (mistura, idioma, velocidade)"),
+    ("tempos", "ver onde o tempo dos comandos foi (atalho, cache, IA)"),
+    ("cache [limpar]", "frases que o Jarvis ja aprendeu do Gemini"),
     ("limpar", "limpar a tela"),
     ("sair", "encerrar o Jarvis"),
 ]
@@ -52,9 +56,11 @@ COMANDOS = [
 class JarvisCompleter(Completer):
     """Sugestoes de slash commands e alvos lidos do catalogo em tempo real."""
 
-    def __init__(self, obter_alvos=None, obter_lembretes=None):
+    def __init__(self, obter_alvos=None, obter_lembretes=None, obter_voz=None):
         self.obter_alvos = obter_alvos or (lambda: [])
         self.obter_lembretes = obter_lembretes or (lambda: [])
+        # obter_voz(tokens_anteriores) -> [(texto, descricao)] para o /voz
+        self.obter_voz = obter_voz
 
     def get_completions(self, document, complete_event):
         antes = document.text_before_cursor
@@ -85,6 +91,19 @@ class JarvisCompleter(Completer):
             for assunto in self.obter_lembretes():
                 if assunto.casefold().startswith(prefixo):
                     yield Completion(assunto, start_position=-len(argumento), display=assunto)
+        elif nome.lower() == "voz" and self.obter_voz is not None:
+            partes = argumento.split(" ")
+            ultimo = partes[-1]
+            if "=" in ultimo:               # ja esta digitando o peso de uma voz
+                return
+            try:
+                candidatos = self.obter_voz([p for p in partes[:-1] if p])
+            except Exception:
+                return
+            for texto, descricao in candidatos:
+                if texto.casefold().startswith(ultimo.casefold()):
+                    yield Completion(texto, start_position=-len(ultimo), display=texto,
+                                     display_meta=descricao)
         elif nome.lower() == "volume" and not argumento.strip():
             for percentual in ("0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100"):
                 yield Completion(percentual, display=percentual + "%")
@@ -93,7 +112,7 @@ class JarvisCompleter(Completer):
 class JarvisCLI:
     LARGURA_MAXIMA = 92
 
-    def __init__(self, obter_alvos=None, obter_lembretes=None, obter_status=None):
+    def __init__(self, obter_alvos=None, obter_lembretes=None, obter_status=None, obter_voz=None):
         terminal_integrado = os.environ.get("JARVIS_INTERACTIVE") == "1"
         self.interativo = bool(
             terminal_integrado or getattr(sys.stdin, "isatty", lambda: False)()
@@ -105,7 +124,7 @@ class JarvisCLI:
             os.environ.get("TERM", "").lower() == "dumb" and not terminal_integrado
         )
         self.com_cores = self.interativo and terminal_com_cores and not terminal_sem_cores
-        self.completer = JarvisCompleter(obter_alvos, obter_lembretes)
+        self.completer = JarvisCompleter(obter_alvos, obter_lembretes, obter_voz)
         self.obter_status = obter_status or (lambda: {})
         self.ia_ativa = False
         self.session = None

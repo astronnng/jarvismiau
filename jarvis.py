@@ -45,6 +45,17 @@ try:
     import cli as cli_terminal
 except ImportError:
     cli_terminal = None
+try:
+    import navegador as navegador_ponte      # controle do navegador (docs/NAVEGADOR.md)
+except ImportError:
+    navegador_ponte = None
+try:
+    import voz as voz_pacote                 # voz opcional (Kokoro) e /voz (docs/VOZ.md)
+except ImportError:
+    voz_pacote = None
+import cache_planos
+import linguagem
+import tempos
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
@@ -105,7 +116,19 @@ PERFIS = {
 }
 PERFIS["BRASILEIRA"] = PERFIS["BR_ANTONIO"]  # apelido antigo
 
-VOZ = os.environ.get("JARVIS_VOZ", VOZ)          # permite testar: set JARVIS_VOZ=BR_BRIAN
+def _perfil_salvo():
+    """Perfil escolhido com /voz padrao (voz.json), se existir e ainda for valido."""
+    if voz_pacote is None:
+        return None
+    try:
+        nome = voz_pacote.config.carregar().get("perfil_padrao")
+    except Exception:
+        return None
+    return nome if nome in PERFIS else None
+
+
+# Prioridade: variavel JARVIS_VOZ (testes) > /voz padrao (voz.json) > constante VOZ acima.
+VOZ = os.environ.get("JARVIS_VOZ") or _perfil_salvo() or VOZ    # ex.: set JARVIS_VOZ=BR_BRIAN
 PERFIL = PERFIS.get(VOZ, PERFIS["BR_ANTONIO"])
 IDIOMA_FALA = PERFIL["idioma"]          # idioma das respostas
 
@@ -540,9 +563,28 @@ _instancia_lock = None
 _cli = None
 
 
+def _tocar_wav(caminho):
+    """Toca um WAV (Kokoro) no mixer do Jarvis. Sem fallback proprio: quem chama decide."""
+    if not _init_player():
+        return False
+    try:
+        import pygame
+
+        canal = pygame.mixer.Sound(caminho).play()
+        while canal is not None and canal.get_busy():
+            time.sleep(0.02)
+        return True
+    except Exception:
+        return False
+
+
 def _falar_audio(texto):
     if CAPTURAR:
         CAPTURADO.append(texto)
+        return
+    # Kokoro (opcional): so fala se estiver ativo em voz.json e funcionando.
+    # Devolvendo False, segue exatamente na cadeia de sempre abaixo.
+    if voz_pacote is not None and voz_pacote.falar(texto, _tocar_wav):
         return
     if PERFIL["motor"] == "edge":
         if _falar_neural(texto):
@@ -935,10 +977,56 @@ def _assuntos_lembretes():
 def _status_painel():
     """Dados do painel e da barra inferior do terminal."""
     voz = VOZ.replace("_", " ")
+    kokoro = voz_pacote.resumo_curto() if voz_pacote is not None else None
     return {
-        "voz": f"{voz} · {PERFIL['motor']}".upper(),
+        "voz": kokoro or f"{voz} · {PERFIL['motor']}".upper(),
         "lembretes": lembretes.Lembretes().listar() if lembretes is not None else [],
     }
+
+
+def _aplicar_perfil_padrao(nome):
+    """Troca o perfil Edge/Windows em uso, sem reiniciar (usado por /voz padrao)."""
+    global VOZ, PERFIL, IDIOMA_FALA
+    if nome not in PERFIS:
+        return False
+    VOZ, PERFIL, IDIOMA_FALA = nome, PERFIS[nome], PERFIS[nome]["idioma"]
+    return True
+
+
+def _contexto_voz():
+    """O que o /voz precisa do Jarvis: falar, confirmar, perfis atuais e tocar WAV."""
+    from voz.comandos import ContextoVoz
+
+    def confirmar(pergunta):
+        if not PERMITIR_ACOES_ARRISCADAS:
+            return False
+        falar(pergunta)
+        return perguntar_sim_nao(tentativas=2)
+
+    nomes = [n for n in PERFIS if n != "BRASILEIRA"]            # "BRASILEIRA" e so um apelido antigo
+    return ContextoVoz(
+        falar=falar,
+        confirmar=confirmar,
+        perfis=lambda: [(n, f"{PERFIS[n]['motor']} · {PERFIS[n].get('voz') or 'voz do Windows'}")
+                        for n in nomes],
+        perfil_atual=lambda: VOZ,
+        aplicar_perfil=_aplicar_perfil_padrao,
+        tocar_wav=_tocar_wav,
+        preaquecer=_preaquecer_kokoro,
+        ambiente_fixa_perfil=bool(os.environ.get("JARVIS_VOZ")),
+    )
+
+
+def _sugestoes_voz(anteriores):
+    """Candidatos do menu `/` para /voz (o CLI filtra pelo que ja foi digitado)."""
+    from voz.comandos import sugestoes
+    return sugestoes(anteriores, _contexto_voz(), voz_pacote.motor)
+
+
+def _preaquecer_kokoro():
+    """Gera em segundo plano as frases comuns na voz do Kokoro (se ele for o motor ativo)."""
+    if voz_pacote is not None and not CAPTURAR:
+        voz_pacote.preaquecer_em_segundo_plano(frases_conhecidas)
 
 
 def _executar_comando_slash(linha):
@@ -974,6 +1062,28 @@ def _executar_comando_slash(linha):
             _cli.jarvis(f'Nao encontrei "{argumento}" no catalogo.')
     elif comando == "confirmar":
         executar_acao("confirmar_lembrete", {"assunto": argumento})
+    elif comando == "voz":
+        if voz_pacote is None:
+            _cli.jarvis("O pacote de voz nao esta disponivel.")
+        else:
+            from voz.comandos import executar as executar_voz
+            resposta = executar_voz(argumento, _contexto_voz(), voz_pacote.motor)
+            if resposta:
+                _cli.jarvis(resposta)
+    elif comando == "tempos":
+        _cli.jarvis(tempos.resumo())
+    elif comando == "cache":
+        cache = _cache()
+        if cache is None:
+            _cli.jarvis("O cache de planos nao esta disponivel.")
+        elif argumento.lower() == "limpar":
+            _cli.jarvis(f"Cache limpo: {cache.limpar()} frases esquecidas.")
+        else:
+            _cli.jarvis(f"O cache guarda {cache.total()} frases ja resolvidas pelo Gemini. "
+                        "Use /cache limpar para esquecer todas.")
+    elif comando == "navegador":
+        executar_acao("navegador_diagnostico" if argumento.lower() in ("diagnostico", "diagnóstico")
+                      else "navegador_status")
     elif comando == "limpar":
         _cli.limpar()
     elif comando == "sair":
@@ -999,7 +1109,8 @@ async def _loop_texto():
                 break
         return
 
-    _cli = cli_terminal.JarvisCLI(_alvos_catalogo, _assuntos_lembretes, _status_painel)
+    _cli = cli_terminal.JarvisCLI(_alvos_catalogo, _assuntos_lembretes, _status_painel,
+                                  _sugestoes_voz if voz_pacote is not None else None)
     _cli.cabecalho(bool(cerebro and cerebro.disponivel() and USAR_IA))
     await asyncio.to_thread(falar, f("inicio"))
     while True:
@@ -1295,22 +1406,29 @@ R_STATUS = r"\b(como (esta|estao) (o pc|o computador|a memoria)|memoria|status|d
 R_DESLIGAR_PC = r"\b(desligar|desliga|reiniciar|reinicia|hibernar)\b.*\b(pc|computador|maquina|windows)\b"
 R_CANCELAR_DESLIGAMENTO = r"\bcancelar\b.*\bdesligamento\b"
 R_LISTAR_LEMBRETES = r"\b(listar|liste|mostrar|mostre|quais|quantos)\b.*\blembretes?\b|\bmeus lembretes\b"
+R_FALA_DE_LEMBRETE = r"\b(lembretes?|alarmes?|avisos?|timer|cronometro)\b"
+# Verbos de encerrar: o assunto e opcional ("encerre", "encerrar o lembrete", "cancela o do arroz").
 R_CONFIRMAR_LEMBRETE = (
     r"^(?:confirmar|confirma|reconhecer|parar|pare|"
     r"para(?=\s+(?:(?:o|a)\s+)?(?:alarme|lembrete)\b)|encerrar|encerra|encerre|"
-    r"cancelar|cancela|cancele|desativar|desativa|desative)\s+(?:(?:o|a)\s+)?"
-    r"(?:(?:alarme|lembrete)\s*(?:de|do|da)?\s*)?(.+)$"
+    r"cancelar|cancela|cancele|desativar|desativa|desative)"
+    r"(?:\s+(?:(?:o|a)\s+)?(?:(?:alarme|lembrete)\s*(?:de|do|da)?\s*)?(.*))?$"
 )
+# Verbos que so sao "encerrar alarme" quando ha um alarme tocando ou a frase cita alarme/lembrete;
+# fora disso ("cancelar desligamento", "pare a musica") pertencem a outros comandos.
+VERBOS_SO_PARA_ALARME = ("confirmar", "confirma", "reconhecer")
+R_ASSUNTO_GENERICO = r"^(?:o|a|os|as|esse|essa|este|esta|isso)?\s*(?:lembretes?|alarmes?)?$"
 R_DISPENSAR_ALARME = (
     r"^(?:nao quero|nao precisa|ja vi|ja fiz|ja cuidei|pronto|dispensa|"
-    r"pode parar|pode encerrar|pode desligar)(?:\s+(?:o|esse|este)\s+(?:alarme|lembrete))?$"
+    r"pode parar|pode encerrar|pode desligar|para|chega|cala|ok|okay|beleza|blz|entendido|entendi|"
+    r"certo|valeu|obrigado|obrigada)(?:\s+(?:o|esse|este)\s+(?:alarme|lembrete))?[\s.!]*$"
 )
 R_RELATO_ALARME_RESOLVIDO = (
-    r"^(?:(?:ok|okay|pok|pock|certo|pronto|feito)[,! ]+)?"
+    r"^(?:(?:ok|okay|pok|pock|certo|beleza|blz|pronto|feito)[,! ]+)?"
     r"(?:(?:ja\s+)?(?:vi|fiz|verifiquei|chequei|conferi|resolvi|terminei)"
     r"(?:\s+(?:(?:o|a)\s+)?(?:alarme|lembrete))?(?:\s+(?P<assunto_verbo>.+))?"
-    r"|(?P<assunto_estado>.+?)\s+(?:verificado|verificada|conferido|conferida|"
-    r"resolvido|resolvida|feito|feita))$"
+    r"|(?:(?P<assunto_estado>.+?)\s+)?(?:verificado|verificada|conferido|conferida|"
+    r"resolvido|resolvida|feito|feita))[\s.!]*$"
 )
 R_CADASTRAR_CATALOGO = (
     r"^\s*(?:adicionar|adiciona|cadastrar|cadastre|incluir|inclua)\s+"
@@ -1378,14 +1496,22 @@ def confirmar_acao_arriscada(nome):
     return perguntar_sim_nao(tentativas=2)
 
 
+_ultimo_uso_navegador = 0.0       # quando uma acao do navegador rodou pela ultima vez
+
+
 def executar_acao(nome, params=None):
     """Roda uma acao do catalogo. Devolve (ok, fala)."""
+    global _ultimo_uso_navegador
     if acoes is None:
         return False, None
-    ok, fala = acoes.executar(nome, params or {}, sys.modules[__name__],
-                              pedir_confirmacao=confirmar_acao_arriscada)
+    if acoes.grupo_de(nome) == "navegador":
+        _ultimo_uso_navegador = time.monotonic()
+    with tempos.medir("acao"):
+        ok, fala = acoes.executar(nome, params or {}, sys.modules[__name__],
+                                  pedir_confirmacao=confirmar_acao_arriscada)
     if fala:
-        falar(fala)
+        with tempos.medir("fala"):
+            falar(fala)
     return ok, fala
 
 
@@ -1413,17 +1539,60 @@ def _contexto_texto():
     return " || ".join(linhas)
 
 
+_cache_planos = None
+
+
+def _cache():
+    """Cache de planos do Gemini (criado na primeira vez; None se nao houver catalogo)."""
+    global _cache_planos
+    if _cache_planos is None and acoes is not None:
+        _cache_planos = cache_planos.CachePlanos(assinatura=acoes.assinatura())
+    return _cache_planos
+
+
+R_FALA_DE_NAVEGADOR = (
+    r"\b(abas?|guias?|paginas?|sites?|navegador|chrome|edge|videos?|youtube|google|gmail|e-?mails?|"
+    r"spotify|favorit\w*|historico|resultados?|links?|pesquis\w*|procur\w*|busc\w*|rol\w+|clic\w*|"
+    r"digit\w*|resum\w*|mapas?|maps|rota|rastre\w*|github|musicas?|tocando|legendas?|anuncios?|"
+    r"velocidade|proxim\w*|diagnostic\w*|tela|texto|formulario|preench\w*)\b")
+
+
+def _grupos_ia(comando):
+    """
+    Quais grupos de acoes mandar ao Gemini. None = todas. Se a frase nao fala de navegador
+    (e o navegador nao foi usado ha pouco, caso de "e o outro?"), as ~35 acoes dele ficam
+    de fora: prompt ~65% menor e resposta mais rapida.
+    """
+    if time.monotonic() - _ultimo_uso_navegador < 300:
+        return None
+    if re.search(R_FALA_DE_NAVEGADOR, normalizar(comando)):
+        return None
+    return {"geral"}
+
+
 def processar_com_ia(comando):
     """
     Passa a frase para a IA, que devolve um plano de acoes do catalogo.
+    Frases ja resolvidas antes saem do cache de planos, sem chamar a IA.
     Devolve True se conseguiu tratar (mesmo que so conversando).
     """
     if not USAR_IA or cerebro is None or acoes is None:
         return False
-    if not cerebro.disponivel():
-        return False
 
-    plano = cerebro.interpretar(comando, acoes.listar_para_ia(), _contexto_texto())
+    cache = _cache()
+    plano = cache.obter(comando) if cache is not None else None
+    do_cache = plano is not None
+    if do_cache:
+        tempos.caminho("cache")
+    else:
+        if not cerebro.disponivel():
+            return False
+        grupos = _grupos_ia(comando)
+        with tempos.medir("ia"):
+            plano = cerebro.interpretar(comando, acoes.listar_para_ia(grupos), _contexto_texto(),
+                                        navegador=grupos is None)
+        if plano and plano.get("_modelo"):
+            tempos.extra(modelo=plano["_modelo"], catalogo="completo" if grupos is None else "reduzido")
 
     if not plano:
         return False
@@ -1455,6 +1624,13 @@ def processar_com_ia(comando):
         executou = executou or ok
         falado = falado or bool(fala_acao)
 
+    # So planos que funcionaram viram "memoria"; um plano velho que falhou e esquecido.
+    if cache is not None:
+        if do_cache and not executou:
+            cache.esquecer(comando)
+        elif not do_cache and executou and cache_planos.cacheavel(comando, plano, acoes.CATALOGO):
+            cache.guardar(comando, plano)
+
     if not executou and not falado and fala_ia:
         falar(fala_ia)
         _lembrar(comando, fala_ia)
@@ -1464,7 +1640,245 @@ def processar_com_ia(comando):
     return executou or falado
 
 
+# ---------------------------------------------------------------------------
+# Atalhos rapidos do navegador (sem passar pela IA). Ver docs/NAVEGADOR.md
+# ---------------------------------------------------------------------------
+_ORDINAIS = {"primeir": 1, "segund": 2, "terceir": 3, "quart": 4, "quint": 5,
+             "sext": 6, "setim": 7, "oitav": 8, "non": 9, "decim": 10}
+_NUMEROS = {"um": 1, "uma": 1, "dois": 2, "duas": 2, "tres": 3, "quatro": 4, "cinco": 5,
+            "seis": 6, "sete": 7, "oito": 8, "nove": 9, "dez": 10}
+_PALAVRAS_NUMERO = "|".join(n for n in _NUMEROS if n not in ("um", "uma"))
+# Posicao falada de varias formas: "segundo", "2", "numero tres", "ultimo", "o de cima" (= primeiro).
+_R_ORD = (r"(?:primeir\w*|segund\w*|terceir\w*|quart\w*|quint\w*|sext\w*|setim\w*|oitav\w*|non\w*|"
+          r"decim\w*|ultim\w*|de\s+cima|\d{1,2}|numero\s+(?:\d{1,2}|" + _PALAVRAS_NUMERO + r"))")
+# Sinonimos de "abrir" para os comandos de posicao ("bota o segundo", "quero ver o terceiro").
+_VERBOS_ABRIR = (r"(?:abr\w*|clic\w*|coloc\w*|bot\w*|mostr\w*|toc\w*|reproduz\w*|assist\w*|"
+                 r"(?:vai|va|ir)\s+(?:pro|para\s+o|no)|quero\s+(?:ver|assistir|abrir))")
+R_ABRIR_ORDINAL = (r"^" + _VERBOS_ABRIR + r"\s+(?:o\s+|a\s+)?(?P<ord>" + _R_ORD + r")(?:\s*[oa]\b)?"
+                   r"(?:\s+(?P<tipo>video|resultado|link|e-?mail)s?)?\b(?P<resto>.*)$")
+R_ABRIR_VARIOS = (r"^" + _VERBOS_ABRIR + r"\s+(?:os\s+|as\s+)?(?P<n>\d{1,2}|" + _PALAVRAS_NUMERO + r")"
+                  r"\s+primeir\w+(?:\s+(?:video|resultado)s?)?\b")
+R_PESQUISAR_NO_SITE = (r"^(?:pesquis\w+|procur\w+|busc\w+|ach\w+|mostr\w+|quero\s+ver)\s+(?:por\s+)?"
+                       r"(?P<termo>.+?)\s+(?:no|na|pelo|pela|dentro\s+do)\s+"
+                       r"(?P<site>youtube|you\s*tube|yt|google|gugou)\b(?P<resto>.*)$")
+R_VELOCIDADE_VIDEO = r"\bvelocidade\b[^\d]*(\d+(?:[.,]\d+)?)\s*(?:x|vezes)?\s*$"
+R_PULAR_ANUNCIO = r"\bpul\w*\s+(?:o\s+|a\s+)?(?:anuncio|propaganda)"
+# Curto e sem verbo de busca: "ativa as legendas" sim, "pesquisar legendas de filme" nao.
+R_LEGENDAS = r"^(?!.*\b(?:pesquis|procur|busc|baix)\w*)(?:\w+\s+){0,3}legendas?(?:\s+\w+){0,2}$"
+R_EMAILS_NAO_LIDOS = (r"\bquant\w+\s+e-?mails?\b|\be-?mails?\b.*\bnao lid\w+|\bnao lid\w+.*\be-?mails?\b|"
+                      r"\be-?mails?\s+novos?\b|\bnovos?\s+e-?mails?\b")
+R_LER_EMAILS = (r"^(?:le\w*|ler|leia|mostr\w+|diga|fal\w+)\s+(?:os\s+|as\s+|meus\s+|minhas\s+)*"
+                r"(?:(?P<n>\d{1,2})\s+)?(?:primeiros\s+|ultimos\s+|novos\s+)?e-?mails?\b")
+
+
+R_SILENCIAR_ABA = (r"^(?P<verbo>silenci\w*|mut\w*|desmut\w*|relig\w*|lig\w*|volt\w*)\s+(?:o\s+som\s+)?"
+                   r"(?:d?a\s+)?aba(?:\s+(?:do|da|de)\s+(?P<alvo>.+))?$")
+R_ABA_COM_SOM = r"\bqual\w*\s+aba\w*\s+(?:esta|ta)\s+toc\w+|\baba\w*\s+(?:esta|ta)\s+toc\w+\s+(?:som|algo)"
+R_FECHAR_DUPLICADAS = r"^fech\w+\s+(?:as\s+|todas\s+as\s+)?abas?\s+(?:duplicad\w+|repetid\w+)$"
+R_FECHAR_ABAS_DE = r"^fech\w+\s+(?:todas\s+)?as\s+abas\s+(?:do|da|de)\s+(?P<alvo>.+)$"
+R_REABRIR_ABA = r"^reabr\w+\s+(?:a\s+)?(?:ultima\s+)?(?:aba|guia)(?:\s+fechada)?$"
+R_FIXAR_ABA = r"^(?P<des>desfix\w+|fix\w+)\s+(?:essa|esta|a)\s+aba$"
+R_MUSICA_TOCANDO = r"\bo\s+que\s+(?:esta|ta)\s+toc\w+|\bque\s+musica\s+e\s+essa\b"
+R_SALVAR_FAVORITO = r"^(?:salv\w+|adicion\w+|coloc\w+)\s+(?:essa|esta|a|isso)\b.*\bfavoritos?$"
+R_DIAGNOSTICO_NAVEGADOR = r"\bdiagnostic\w*\b.*\bnavegador\b|\bnavegador\b.*\bdiagnostic\w*"
+# Sobre o texto original (com acentos), para o termo de busca sair intacto.
+R_BUSCAR_HISTORICO = (r"^(?:procur\w+|busc\w+|ach\w+)\s+(?:(?:no|em)\s+)?(?:meu\s+)?hist[oó]rico\s+"
+                      r"(?:(?:por|sobre|de|do|da)\s+)?(?P<termo>.+)$")
+R_BUSCAR_FAVORITOS = (r"^(?:procur\w+|busc\w+|ach\w+)\s+(?:(?:nos|em)\s+)?(?:meus\s+)?favoritos\s+"
+                      r"(?:(?:por|sobre|de|do|da)\s+)?(?P<termo>.+)$")
+
+
+def _numero_ordinal(texto):
+    """Posicao falada -> numero. -1 = o ultimo (as listas entendem posicao negativa)."""
+    texto = re.sub(r"^numero\s+", "", texto.strip())
+    if texto.isdigit():
+        return int(texto)
+    if texto.startswith("ultim"):
+        return -1
+    if texto.startswith("de cima"):
+        return 1
+    if texto in _NUMEROS:
+        return _NUMEROS[texto]
+    return next((n for radical, n in _ORDINAIS.items() if texto.startswith(radical)), None)
+
+
+def _escolha_de_aba(resto):
+    """True/False se o usuario pediu aba nova/mesma aba; None deixa o Jarvis decidir."""
+    if re.search(r"\bmesma\s+(aba|guia)\b|\bnessa\s+(aba|guia)\b|\baqui\s+mesmo\b", resto):
+        return False
+    if re.search(r"(outra|nova|novo)\s+(aba|guia)|aba\s+(nova|separada)|\bem\s+(uma\s+)?aba\b|"
+                 r"\b(?:ao|do)\s+lado\b|\bem\s+paralelo\b", resto):
+        return True
+    return None
+
+
+def _atalho_navegador(comando, c):
+    """
+    Comandos frequentes do navegador, resolvidos localmente. Devolve True se tratou.
+    A frase passa antes por linguagem.tirar_enchimento ("por favor", "pode", "pra mim"...).
+    """
+    comando = linguagem.tirar_enchimento(comando)
+    c = normalizar(comando)
+    pesquisa = re.match(R_PESQUISAR_NO_SITE, comando.strip(), re.IGNORECASE)
+    if pesquisa:
+        site = "youtube" if pesquisa.group("site").lower().startswith("y") else "google"
+        termo = pesquisa.group("termo").strip()
+        resto = normalizar(pesquisa.group("resto"))
+        params = {"termo": termo}
+        escolha = _escolha_de_aba(resto)
+        if escolha is not None:
+            params["nova_aba"] = escolha
+        executar_acao(f"{site}_pesquisar", params)
+        depois = re.search(r"\b" + _VERBOS_ABRIR + r"\s+(?:o\s+|a\s+)?(" + _R_ORD + r")\b", resto)
+        if depois:
+            executar_acao("resultado_abrir", {"posicao": _numero_ordinal(depois.group(1)),
+                                              "nova_aba": False if site == "youtube" else True})
+        return True
+
+    for regra, acao_busca in ((R_BUSCAR_HISTORICO, "historico_buscar"),
+                              (R_BUSCAR_FAVORITOS, "favoritos_buscar")):
+        busca = re.match(regra, comando.strip(), re.IGNORECASE)
+        if busca:
+            executar_acao(acao_busca, {"termo": busca.group("termo").strip()})
+            return True
+
+    silenciar = re.match(R_SILENCIAR_ABA, c)
+    if silenciar:
+        religar = silenciar.group("verbo").startswith(("desmut", "relig", "lig", "volt"))
+        params = {"silenciar": not religar}
+        if silenciar.group("alvo"):
+            params["alvo"] = silenciar.group("alvo").strip()
+        executar_acao("aba_silenciar", params)
+        return True
+    if re.search(R_ABA_COM_SOM, c):
+        executar_acao("abas_som")
+        return True
+    if re.match(R_FECHAR_DUPLICADAS, c):
+        executar_acao("abas_fechar", {"duplicadas": True})
+        return True
+    fechar = re.match(R_FECHAR_ABAS_DE, c)
+    if fechar:
+        executar_acao("abas_fechar", {"texto": fechar.group("alvo").strip()})
+        return True
+    if re.match(R_REABRIR_ABA, c):
+        executar_acao("aba_reabrir")
+        return True
+    fixar = re.match(R_FIXAR_ABA, c)
+    if fixar:
+        executar_acao("aba_fixar", {"fixar": not fixar.group("des").startswith("desfix")})
+        return True
+    if re.search(R_MUSICA_TOCANDO, c):
+        executar_acao("musica_tocando")
+        return True
+    if re.match(R_SALVAR_FAVORITO, c):
+        executar_acao("favorito_salvar")
+        return True
+    if re.search(R_DIAGNOSTICO_NAVEGADOR, c):
+        executar_acao("navegador_diagnostico")
+        return True
+
+    varios = re.match(R_ABRIR_VARIOS, c)
+    if varios:
+        n = varios.group("n")
+        executar_acao("youtube_abrir_varios",
+                      {"quantidade": int(n) if n.isdigit() else _NUMEROS[n]})
+        return True
+
+    ordinal = re.match(R_ABRIR_ORDINAL, c)
+    if ordinal and _numero_ordinal(ordinal.group("ord")):
+        params = {"posicao": _numero_ordinal(ordinal.group("ord"))}
+        resto = ordinal.group("resto")
+        if (ordinal.group("tipo") or "").replace("-", "") == "email":
+            executar_acao("gmail_abrir", params)
+            return True
+        escolha = _escolha_de_aba(resto)
+        if escolha is not None:
+            params["nova_aba"] = escolha
+        if re.search(r"segundo plano|background|escondido|sem\s+(?:sair|trocar|mudar)", resto):
+            params["segundo_plano"] = True
+        executar_acao("resultado_abrir", params)
+        return True
+
+    velocidade = re.search(R_VELOCIDADE_VIDEO, c)
+    if velocidade and not re.search(R_CLIMA, c):
+        executar_acao("youtube_player", {"controle": "velocidade",
+                                         "valor": velocidade.group(1).replace(",", ".")})
+        return True
+    if re.search(R_PULAR_ANUNCIO, c):
+        executar_acao("youtube_player", {"controle": "pular_anuncio"})
+        return True
+    if re.match(R_LEGENDAS, c):
+        executar_acao("youtube_player", {"controle": "legendas"})
+        return True
+
+    listar = re.match(R_LER_EMAILS, c)
+    if listar:
+        executar_acao("gmail_listar", {"quantidade": int(listar.group("n") or 5)})
+        return True
+    if re.search(R_EMAILS_NAO_LIDOS, c):
+        executar_acao("gmail_nao_lidos")
+        return True
+    return False
+
+
 def processar(comando):
+    """Ponto de entrada de todo comando (texto ou voz). Mede o tempo em tempos.jsonl."""
+    tempos.iniciar(comando)
+    try:
+        return _processar(comando)
+    finally:
+        tempos.finalizar()
+
+
+def _tratar_alarme(comando):
+    """
+    Encerrar/confirmar alarmes e lembretes ("ok, verificado", "encerre", "cancela o lembrete").
+    Devolve True se tratou. A frase e testada como foi dita e sem o enchimento ("pode",
+    "por favor"), porque as regras antigas ja contavam com as duas formas.
+
+    Verbos ambiguos (encerrar, parar, cancelar...) so valem aqui se houver um alarme tocando ou se
+    a frase citar alarme/lembrete: "cancelar desligamento" e "pare a musica" sao outros comandos.
+    """
+    formas = []
+    for texto in (comando, linguagem.tirar_enchimento(comando)):
+        c = normalizar(texto)
+        if c and c not in formas:
+            formas.append(c)
+
+    tocando = []                          # consulta ao banco so quando precisar, e uma vez
+
+    def alarme_tocando():
+        if not tocando:
+            tocando.append(lembretes is not None and lembretes.Lembretes().tem_alarmas_tocando())
+        return tocando[0]
+
+    for c in formas:
+        citou = bool(re.search(R_FALA_DE_LEMBRETE, c))
+        confirmar = re.match(R_CONFIRMAR_LEMBRETE, c)
+        if confirmar:
+            assunto = re.sub(r"^(?:do|da|de|sobre)\s+", "", (confirmar.group(1) or "").strip())
+            if re.match(R_ASSUNTO_GENERICO, assunto):
+                assunto = ""              # "encerrar o lembrete" = sem assunto especifico
+            exclusivo = c.split()[0] in VERBOS_SO_PARA_ALARME
+            # Sem assunto, so age se o alarme esta tocando ou o usuario falou "lembrete/alarme".
+            if (assunto and (exclusivo or citou or alarme_tocando())) or (
+                    not assunto and (citou or alarme_tocando())):
+                executar_acao("confirmar_lembrete", {"assunto": assunto})
+                return True
+        relato = re.match(R_RELATO_ALARME_RESOLVIDO, c)
+        if relato and alarme_tocando():
+            assunto = relato.group("assunto_verbo") or relato.group("assunto_estado") or ""
+            assunto = re.sub(r"^(?:o|a|os|as)\s+", "", assunto).strip()
+            assunto = re.sub(r"^(?:do|da|de|sobre)\s+", "", assunto).strip()
+            executar_acao("confirmar_lembrete", {"assunto": assunto})
+            return True
+        if re.match(R_DISPENSAR_ALARME, c) and alarme_tocando():
+            executar_acao("confirmar_lembrete", {"assunto": ""})
+            return True
+    return False
+
+
+def _processar(comando):
     atualizar_catalogos()
     c = normalizar(comando)
 
@@ -1475,7 +1889,14 @@ def processar(comando):
     if re.search(R_SAIR_ASSISTENTE, c):
         falar(f("sair"))
         return False
-    if re.search(R_SAIR, c) and not re.search(r"\b(pc|computador|maquina|windows|desligamento)\b", c):
+
+    # Alarmes ANTES de "sair": "encerrar o lembrete" e "pode encerrar" nao podem fechar o Jarvis.
+    if _tratar_alarme(comando):
+        return True
+
+    if (re.search(R_SAIR, c)
+            and not re.search(r"\b(pc|computador|maquina|windows|desligamento)\b", c)
+            and not re.search(R_FALA_DE_LEMBRETE, c)):
         falar(f("sair"))
         return False
 
@@ -1485,21 +1906,9 @@ def processar(comando):
         cadastrar_entrada_catalogo(tipo, cadastro.group("resto"))
         return True
 
-    confirmar = re.match(R_CONFIRMAR_LEMBRETE, c)
-    if confirmar:
-        executar_acao("confirmar_lembrete", {"assunto": confirmar.group(1).strip()})
-        return True
-    relato = re.match(R_RELATO_ALARME_RESOLVIDO, c)
-    if (relato and lembretes is not None
-            and lembretes.Lembretes().tem_alarmas_tocando()):
-        assunto = relato.group("assunto_verbo") or relato.group("assunto_estado") or ""
-        assunto = re.sub(r"^(?:o|a|os|as)\s+", "", assunto).strip()
-        assunto = re.sub(r"^(?:do|da|de|sobre)\s+", "", assunto).strip()
-        executar_acao("confirmar_lembrete", {"assunto": assunto})
-        return True
-    if (re.match(R_DISPENSAR_ALARME, c) and lembretes is not None
-            and lembretes.Lembretes().tem_alarmas_tocando()):
-        executar_acao("confirmar_lembrete", {"assunto": ""})
+    # Navegador: comandos frequentes sao resolvidos aqui, rapido e sem gastar a IA
+    if acoes is not None and acoes.existe("resultado_abrir") and _atalho_navegador(comando, c):
+        tempos.caminho("atalho")
         return True
 
     # Frase com mais de uma acao: melhor deixar a IA planejar tudo de uma vez
@@ -1697,6 +2106,7 @@ def main():
         return
 
     preaquecer_cache()
+    _preaquecer_kokoro()            # no-op se o Kokoro nao for o motor ativo (voz.json)
 
     if not MODO_TEXTO:
         if MODO_DEMO:
@@ -1709,6 +2119,11 @@ def main():
 
     if lembretes is not None:
         _servico_alarmes = lembretes.ServicoAlarmes().iniciar()
+    if navegador_ponte is not None:
+        try:
+            navegador_ponte.iniciar()
+        except Exception as erro:
+            print(f"(ponte do navegador indisponivel: {erro})")
 
     try:
         if MODO_TEXTO:
@@ -1730,6 +2145,8 @@ def main():
         if _servico_alarmes is not None:
             _servico_alarmes.parar()
             _servico_alarmes = None
+        if navegador_ponte is not None:
+            navegador_ponte.parar()
         encerrar_microfone()
         _liberar_lock_instancia()
 

@@ -96,13 +96,31 @@ def modelos():
 # ============================================================================
 # O PROMPT
 # ============================================================================
-def montar_prompt(catalogo, contexto=""):
-    hoje = time.strftime("%A, %d de %B de %Y, %H:%M")
+# Regra extra, so enviada quando a frase fala de navegador (junto com as acoes dele).
+REGRA_NAVEGADOR = """10. NAVEGADOR. Para "abre o primeiro/segundo video", use youtube_pesquisar e depois
+    youtube_abrir_resultado (posicao 1, 2...; nova_aba true se pedirem outra aba). O mesmo vale
+    para o Google com google_pesquisar e google_abrir_resultado. Se o usuario ja estiver numa
+    pesquisa, use so a acao de abrir. Controles do video ("pausa", "proximo", "velocidade 1.5")
+    usam youtube_player. E-mails usam gmail_*. Spotify Web e YouTube Music usam musica_controle e
+    musica_tocando. Abas: aba_silenciar (som so da aba), abas_fechar, aba_reabrir, abas_agrupar.
+    "Aquele site que vi sobre X" usa historico_buscar (ou favoritos_buscar) e depois resultado_abrir.
+    Em um site sem acao propria, use navegador_tarefa com a instrucao completa. Se a acao
+    responder que a extensao nao esta conectada, repasse isso. Se um atalho nao achar nada,
+    sugira navegador_diagnostico.
+"""
+
+
+def _parte_fixa(catalogo, navegador=True):
+    """
+    Tudo que NAO muda entre chamadas. Vai primeiro no prompt: o Gemini reaproveita
+    automaticamente prefixos repetidos (cache implicito), entao quanto mais estavel e
+    longo o comeco, mais rapida e barata a chamada. Nao ponha hora, contexto ou o
+    comando do usuario aqui.
+    """
+    regra_navegador = REGRA_NAVEGADOR if navegador else ""
+    ultima = 11 if navegador else 10
     return f"""Voce e o JARVIS, o assistente do senhor. Fala portugues do Brasil,
 trata o usuario por "senhor", e responde em frases curtas e naturais (sera falado em voz alta).
-
-Data e hora agora: {hoje}
-{("Contexto da conversa: " + contexto) if contexto else ""}
 
 Voce controla o computador Windows dele. Estas sao as UNICAS acoes que existem:
 
@@ -122,8 +140,10 @@ REGRAS IMPORTANTES:
    explicitamente Spotify com uma musica, use spotify_buscar com o termo.
 5. "aumentar/diminuir volume" -> volume. "silenciar" -> volume com sentido "mudo".
    Para um nivel exato (ex: 35 por cento), use volume com parametro percentual: 35.
-   Ao pedirem a lista, use listar_lembretes; para parar um alarme, use confirmar_lembrete
-   com o assunto especifico.
+   Ao pedirem a lista, use listar_lembretes. Para parar um alarme que esta tocando, ou cancelar
+   um lembrete ("encerre", "encerrar o lembrete", "ok, verificado"), use confirmar_lembrete:
+   assunto vazio vale para o que esta tocando (ou o unico lembrete pendente). Nunca trate
+   "encerrar o lembrete" como pedido para fechar o Jarvis.
 6. Se o usuario pedir algo que o computador faz mas nao esta na lista, use pesquisar_google
    com um termo bom, e diga isso na "fala".
 7. Se a frase for uma pergunta de conhecimento (ex: "quanto e 15% de 340", "quem foi Santos Dumont"),
@@ -131,7 +151,18 @@ REGRAS IMPORTANTES:
 8. Se faltar um dado essencial (ex: "toca uma musica" sem dizer qual), use "passos": [] e
    pergunte na "fala".
 9. NUNCA escreva a acao "desligar" sem o usuario pedir claramente para desligar o computador.
-10. Responda SOMENTE o JSON."""
+{regra_navegador}{ultima}. Responda SOMENTE o JSON."""
+
+
+def _parte_variavel(contexto=""):
+    """O que muda a cada chamada: hora e conversa recente. Sempre depois da parte fixa."""
+    hoje = time.strftime("%A, %d de %B de %Y, %H:%M")
+    return (f"\n\nData e hora agora: {hoje}"
+            + (f"\nContexto da conversa: {contexto}" if contexto else ""))
+
+
+def montar_prompt(catalogo, contexto="", navegador=True):
+    return _parte_fixa(catalogo, navegador) + _parte_variavel(contexto)
 
 
 # ============================================================================
@@ -173,16 +204,17 @@ def _limpar_json(texto):
         return None
 
 
-def interpretar(texto, catalogo, contexto="", erro_anterior=None):
+def interpretar(texto, catalogo, contexto="", erro_anterior=None, navegador=True):
     """
     Manda a frase para a IA e devolve {"fala": str, "passos": [...]} ou None.
     Faz fallback entre modelos se um nao existir/estourar limite.
+    `navegador=False` omite a regra do navegador (use com o catalogo sem essas acoes).
     """
     api_key = chave()
     if not api_key:
         return None
 
-    prompt = montar_prompt(catalogo, contexto)
+    prompt = montar_prompt(catalogo, contexto, navegador)
     if erro_anterior:
         prompt += (f"\n\nATENCAO: a tentativa anterior falhou ({erro_anterior})."
                    "\nCorrija o JSON e use apenas acoes e parametros validos.")
@@ -217,6 +249,28 @@ def interpretar(texto, catalogo, contexto="", erro_anterior=None):
         return plano
 
     return {"erro": ultimo_erro or "sem resposta"}
+
+
+def responder_json(prompt, timeout=25):
+    """
+    Pergunta avulsa que exige um JSON de volta (usada pelo modo generico do navegador).
+    Usa o mesmo fallback entre modelos. Devolve um dict, ou None se nada respondeu.
+    """
+    api_key = chave()
+    if not api_key:
+        return None
+    for modelo in modelos():
+        try:
+            dados = _limpar_json(_chamar(modelo, api_key, prompt, timeout=timeout))
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                return None
+            continue
+        except Exception:
+            continue
+        if isinstance(dados, dict):
+            return dados
+    return None
 
 
 def conversar(texto, contexto=""):

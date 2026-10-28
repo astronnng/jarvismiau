@@ -115,6 +115,11 @@ class Lembretes:
         return [dict(row) for row in novos] + [dict(row) for row in repetidos]
 
     def confirmar(self, assunto, agora=None):
+        """Encerra alarmes que estao tocando (ou ja venceram). Devolve a frase a falar."""
+        return self._confirmar(assunto, agora)[1]
+
+    def _confirmar(self, assunto, agora=None):
+        """(status, frase): status 'ok', 'ambiguo' ou 'nada' (nenhum alarme tocando casou)."""
         agora = time.time() if agora is None else float(agora)
         chave = normalizar(assunto)
         with self._conectar() as con:
@@ -123,24 +128,59 @@ class Lembretes:
                 "AND (estado='tocando' OR vence_em<=?) ORDER BY vence_em, id",
                 (agora,),
             ).fetchall()
+            exatos = []
             if not chave:
                 candidatos = [row for row in rows if row["estado"] == "tocando"]
                 if len(candidatos) > 1:
                     assuntos = "; ".join(row["motivo"] for row in candidatos)
-                    return f"Ha mais de um alarme tocando: {assuntos}. Diga qual deseja encerrar, senhor."
+                    return "ambiguo", (f"Ha mais de um alarme tocando: {assuntos}. "
+                                       "Diga qual deseja encerrar, senhor.")
             else:
                 exatos = [row for row in rows if normalizar(row["motivo"]) == chave]
                 candidatos = exatos or [row for row in rows if chave in normalizar(row["motivo"])]
             if not candidatos:
-                return "Nao encontrei alarme ativo com esse assunto, senhor."
+                return "nada", "Nao encontrei alarme ativo com esse assunto, senhor."
             if len(candidatos) > 1 and not exatos:
                 assuntos = "; ".join(row["motivo"] for row in candidatos)
-                return f"Encontrei mais de um alarme: {assuntos}. Diga o assunto completo, senhor."
+                return "ambiguo", f"Encontrei mais de um alarme: {assuntos}. Diga o assunto completo, senhor."
             con.executemany("UPDATE lembretes SET estado='concluido' WHERE id=?",
                             [(row["id"],) for row in candidatos])
         if len(candidatos) > 1:
-            return f"Alarmes de {candidatos[0]['motivo']} confirmados, senhor."
-        return f"Alarme de {candidatos[0]['motivo']} confirmado, senhor."
+            return "ok", f"Alarmes de {candidatos[0]['motivo']} confirmados, senhor."
+        return "ok", f"Alarme de {candidatos[0]['motivo']} confirmado, senhor."
+
+    def encerrar(self, assunto, agora=None):
+        """
+        "Encerrar o lembrete": primeiro o alarme que esta tocando; se nenhum casar, cancela um
+        lembrete FUTURO (pelo assunto, ou o unico que existir). Devolve a frase a falar.
+        """
+        agora = time.time() if agora is None else float(agora)
+        status, frase = self._confirmar(assunto, agora)
+        if status != "nada":
+            return frase
+        chave = normalizar(assunto)
+        with self._conectar() as con:
+            futuros = con.execute(
+                "SELECT id, motivo FROM lembretes WHERE estado='pendente' AND vence_em>? "
+                "ORDER BY vence_em, id", (agora,)).fetchall()
+            if not futuros:
+                return frase if chave else "Nao ha alarme tocando nem lembrete pendente, senhor."
+            if chave:
+                exatos = [r for r in futuros if normalizar(r["motivo"]) == chave]
+                candidatos = exatos or [r for r in futuros if chave in normalizar(r["motivo"])]
+                if not candidatos:
+                    return frase
+                if len(candidatos) > 1 and not exatos:
+                    assuntos = "; ".join(r["motivo"] for r in candidatos)
+                    return f"Encontrei mais de um lembrete: {assuntos}. Diga o assunto completo, senhor."
+            elif len(futuros) == 1:
+                candidatos = futuros
+            else:
+                assuntos = "; ".join(r["motivo"] for r in futuros)
+                return f"Tenho {len(futuros)} lembretes pendentes: {assuntos}. Diga qual cancelar, senhor."
+            con.executemany("UPDATE lembretes SET estado='cancelado' WHERE id=?",
+                            [(r["id"],) for r in candidatos])
+        return f"Lembrete de {candidatos[0]['motivo']} cancelado, senhor."
 
 
 class ServicoAlarmes:

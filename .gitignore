@@ -46,3 +46,15 @@ htmlcov/
 # Arquivos gerados pelo Windows
 Thumbs.db
 Desktop.ini
+
+# Ponte do navegador: token e configuracao locais
+navegador.json
+extensao/config.local.js
+
+# Medicoes de tempo e cache de planos do Gemini (locais)
+tempos.jsonl
+cache_planos.json
+
+# Modelos baixados do Kokoro (grandes, locais) e configuracao de voz
+modelos/
+voz.json
