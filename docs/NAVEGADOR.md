@@ -33,7 +33,7 @@ A extensão **não conhece nenhum site**. Ela só oferece operações genéricas
 
 ## 📥 Instalação (uma vez)
 
-1. Abra o Jarvis uma vez (`Jarvis-texto.bat`). Ele cria `navegador.json` (porta e token) e `extensao/config.local.js` (cópia para a extensão). Ambos são ignorados pelo Git.
+1. Abra o Jarvis uma vez (`Jarvis.bat texto`). Ele cria `dados/navegador.json` (porta e token) e `extensao/config.local.js` (cópia para a extensão). Ambos são ignorados pelo Git.
 2. No Chrome acesse `chrome://extensions` (no Edge, `edge://extensions`).
 3. Ative o **Modo do desenvolvedor**.
 4. Clique em **Carregar sem compactação** e escolha a pasta `extensao/` deste projeto.
@@ -100,7 +100,7 @@ A IA só escolhe números da lista; não executa nada fora desses passos.
 - A extensão só abre endereços `http(s)`.
 - **Permissões da extensão** (`manifest.json`): `tabs`, `scripting`, `alarms`, `tabGroups`, `sessions`, `history`, `bookmarks` e acesso a todos os sites (para ler e clicar nas páginas). Não há permissão de cookies, downloads nem área de transferência de propósito.
 - Os novos atalhos de Spotify Web e YouTube Music (`_PLAYERS` em `navegador/atalhos.py`) usam seletores que **não foram testados nos sites reais**: se algum falhar, use o diagnóstico.
-- **Pelo Telegram:** o bot usa as mesmas ações, mas só sobe a ponte se nenhum Jarvis estiver aberto (a porta é uma só), e recusa os passos sensíveis do modo genérico, porque não consegue pedir a confirmação. Veja `BOT-TELEGRAM.md`.
+- **Pelo Telegram:** o bot usa as mesmas ações, mas só sobe a ponte se nenhum Jarvis estiver aberto (a porta é uma só), e recusa os passos sensíveis do modo genérico, porque não consegue pedir a confirmação. Veja `TELEGRAM.md`.
 
 ## 🛠️ Como estender
 

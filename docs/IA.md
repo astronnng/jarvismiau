@@ -23,11 +23,11 @@ Não precisa de cartão de crédito. O plano gratuito do Gemini cobre milhares d
 
 ### 2. Configure
 
-Dois cliques em **`Configurar-IA.bat`** → cole a chave → ENTER.
+Rode **`Jarvis.bat ia`** → cole a chave → ENTER.
 
 O configurador **testa os modelos gratuitos na sua chave** e escolhe o que funcionar
 (hoje: `gemini-3.5-flash-lite`, `gemini-3.8-flash`, `gemini-3.1-flash-lite`…).
-Ele grava tudo em `ia_config.json`.
+Ele grava tudo em `dados/ia_config.json`.
 
 ### 3. Use
 
@@ -120,7 +120,7 @@ Jarvis: Nao tenho permissao para apagar arquivos, senhor.
 | Desligar o PC por acidente | Ações marcadas como risco **sempre** pedem confirmação falada | 
 | Alguém desligar o PC pelo Telegram | **Bloqueado**: ações de risco só funcionam no terminal do PC |
 | A IA ser convencida a "apagar tudo" | Não existe ação de apagar arquivos, nem de executar comandos livres |
-| Chave vazando | Fica em `ia_config.json`, local. Não vai para nenhum servidor seu. |
+| Chave vazando | Fica em `dados/ia_config.json`, local. Não vai para nenhum servidor seu. |
 | Custo | Plano gratuito. Se estourar o limite, ele volta às regras locais sozinho. |
 | A IA clicar em algo sensível numa página | No modo genérico do navegador, passos como enviar, comprar, pagar, excluir e confirmar pedem o seu "sim"; campos de senha nunca são preenchidos. Pelo Telegram, esses passos são recusados. |
 | Uma frase guardada no cache executar a coisa errada | Planos que falham são esquecidos na hora; ações de risco e frases que dependem do contexto nunca entram no cache; `/cache limpar` esquece tudo. |
@@ -150,13 +150,13 @@ o Gmail é somente leitura e nada sensível acontece sem a sua confirmação.
 
 | Problema | Solução |
 |---|---|
-| "IA desligada: sem chave" | Rode `Configurar-IA.bat`. |
-| "IA indisponível: HTTP 429" | Você estourou o limite gratuito do dia. Volta a funcionar amanhã, ou troca o modelo no `ia_config.json`. |
-| "IA indisponível: HTTP 404" | Modelo não existe na sua chave. Rode `Configurar-IA.bat` de novo: ele testa e escolhe um válido. |
+| "IA desligada: sem chave" | Rode `Jarvis.bat ia`. |
+| "IA indisponível: HTTP 429" | Você estourou o limite gratuito do dia. Volta a funcionar amanhã, ou troca o modelo no `dados/ia_config.json`. |
+| "IA indisponível: HTTP 404" | Modelo não existe na sua chave. Rode `Jarvis.bat ia` de novo: ele testa e escolhe um válido. |
 | Ele erra o comando com frequência | Fale de forma mais específica ("abrir o Bloco de Notas" em vez de "abre aí"). O modelo pequeno é rápido, mas menos esperto que os grandes. |
 | Ele repete sempre a mesma ação errada para uma frase | Pode ser um plano guardado no cache. Use `/cache limpar` no modo texto. |
 | Quero ver onde o tempo dos comandos está indo | Use `/tempos` no modo texto (atalho, cache ou IA, e o tempo de cada etapa). |
-| Quero desligar a IA | `Jarvis.bat --sem-ia`, ou apague `ia_config.json`. |
+| Quero desligar a IA | `Jarvis.bat --sem-ia`, ou apague `dados/ia_config.json`. |
 | Quero ver o diagnóstico | No terminal: `python jarvis.py --ia-status` |
 
 ---

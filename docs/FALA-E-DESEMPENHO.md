@@ -39,7 +39,7 @@ Para ensinar uma variação nova, ajuste a regra correspondente em `jarvis.py` (
 
 ## 2. Cache de planos (`cache_planos.py`)
 
-Quando o Gemini resolve uma frase e as ações funcionam, o plano é guardado em `cache_planos.json`. Na próxima vez que a mesma frase aparecer (sem diferença de acento, caixa ou cortesia), ela é executada na hora, sem rede e sem gastar cota.
+Quando o Gemini resolve uma frase e as ações funcionam, o plano é guardado em `dados/cache_planos.json`. Na próxima vez que a mesma frase aparecer (sem diferença de acento, caixa ou cortesia), ela é executada na hora, sem rede e sem gastar cota.
 
 **Não entram no cache:** conversa sem ações, ações de risco, frases que dependem do contexto ("esse", "de novo", "o outro", "agora"), e planos que falharam. Se um plano do cache falhar, ele é esquecido na hora. Se o catálogo de ações mudar, o cache inteiro é descartado.
 
@@ -54,7 +54,7 @@ Comandos: `/cache` (quantas frases) e `/cache limpar`.
 
 ## 4. Medição (`tempos.py`)
 
-Cada comando vira uma linha em `tempos.jsonl` (local, ignorado pelo Git, contém as frases ditas):
+Cada comando vira uma linha em `dados/tempos.jsonl` (local, ignorado pelo Git, contém as frases ditas):
 
 ```json
 {"ts": 1730000000, "frase": "abre o segundo video", "caminho": "atalho",
